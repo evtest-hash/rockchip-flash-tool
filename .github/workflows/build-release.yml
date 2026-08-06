@@ -102,7 +102,8 @@ jobs:
 
   # Smoke tests: prove the artifact is well formed, starts on the target OS and
   # carries a working upgrade_tool. Flashing itself needs a USB device and
-  # cannot be covered here. Linux is covered by test-linux-appimage-compat.yml.
+  # cannot be covered here.
+  #
   # Apple Silicon only. Intel runners can sit queued for a long time, and
   # continue-on-error does not help: gate still waits for the leg to finish. The
   # runner ships Rosetta 2, so the x86_64 half of the universal build is covered
@@ -290,7 +291,8 @@ jobs:
             install: |
               apt-get update
               DEBIAN_FRONTEND=noninteractive apt-get install -y \
-                file fuse libfuse2 libegl1 libgbm1 libopengl0 xauth xvfb
+                file fuse libfuse2 libegl1 libgbm1 libopengl0 \
+                libfontconfig1 libfreetype6 libx11-6 libxcb1 xauth xvfb
           - id: ubuntu2404
             label: Ubuntu 24.04
             image: ubuntu:24.04
@@ -298,7 +300,8 @@ jobs:
             install: |
               apt-get update
               DEBIAN_FRONTEND=noninteractive apt-get install -y \
-                file fuse3 libfuse2t64 libegl1 libgbm1 libopengl0 xauth xvfb
+                file fuse3 libfuse2t64 libegl1 libgbm1 libopengl0 \
+                libfontconfig1 libfreetype6 libx11-6 libxcb1 xauth xvfb
           - id: debian12
             label: Debian 12
             image: debian:12
@@ -306,7 +309,8 @@ jobs:
             install: |
               apt-get update
               DEBIAN_FRONTEND=noninteractive apt-get install -y \
-                file fuse3 libfuse2 libegl1 libgbm1 libopengl0 xauth xvfb
+                file fuse3 libfuse2 libegl1 libgbm1 libopengl0 \
+                libfontconfig1 libfreetype6 libx11-6 libxcb1 xauth xvfb
           - id: fedora40
             label: Fedora 40
             image: fedora:40
@@ -314,7 +318,8 @@ jobs:
             install: |
               dnf install -y \
                 file findutils fuse fuse-libs mesa-libEGL mesa-libgbm \
-                mesa-libGL xauth xorg-x11-server-Xvfb
+                mesa-libGL fontconfig freetype libX11 libxcb \
+                xauth xorg-x11-server-Xvfb
           - id: fedora41
             label: Fedora 41
             image: fedora:41
@@ -322,14 +327,16 @@ jobs:
             install: |
               dnf install -y \
                 file findutils fuse fuse-libs mesa-libEGL mesa-libgbm \
-                mesa-libGL xauth xorg-x11-server-Xvfb
+                mesa-libGL fontconfig freetype libX11 libxcb \
+                xauth xorg-x11-server-Xvfb
           - id: archlinux
             label: Arch Linux
             image: archlinux:latest
             advisory: true
             install: |
               pacman -Syu --noconfirm \
-                file findutils fuse2 mesa xorg-xauth xorg-server-xvfb
+                file findutils fuse2 mesa fontconfig freetype2 libx11 libxcb \
+                xorg-xauth xorg-server-xvfb
     steps:
       - name: Checkout
         uses: actions/checkout@v4

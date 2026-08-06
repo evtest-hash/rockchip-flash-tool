@@ -163,38 +163,76 @@ else
   echo "ldd not available in container" >"$LDD_LOG"
 fi
 
-# Self-containment. An AppImage is supposed to carry everything but the kernel,
-# glibc and the graphics drivers, so nothing it needs may resolve from the host.
-# ldd has to see the same search path AppRun exports, otherwise the bundle's own
-# Qt libraries would look missing.
+# Self-containment. An AppImage does not bundle everything: the AppImage project
+# maintains an excludelist of libraries that must come from the host, because
+# bundling them breaks (graphics drivers, fontconfig, core X/xcb, glibc). So an
+# unresolved dependency is a packaging defect only when the library is NOT on
+# that list. ldd also has to see the same search path AppRun exports, or the
+# bundle's own Qt libraries would look missing.
+EXCLUDELIST="${EXCLUDELIST:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/appimage-excludelist.txt}"
 app_base="$(cd "$(dirname "$main_bin")" && pwd)"
 bundle_ld_path="$PWD/squashfs-root/usr/lib:$app_base:$app_base/_internal:$app_base/_internal/PySide6/Qt/lib"
 
-assert_no_unresolved() {
+# Unresolved libraries that are the host's job, printed once for the record.
+host_provided() {
+  local soname="$1"
+  [[ -f "$EXCLUDELIST" ]] || return 1
+  grep -qx -- "$soname" "$EXCLUDELIST"
+}
+
+# Echoes the sonames that are genuinely missing from the bundle.
+missing_from_bundle() {
+  local target="$1"
+  local out="$2"
+  command -v ldd >/dev/null 2>&1 || return 0
+  env LD_LIBRARY_PATH="$bundle_ld_path" ldd "$target" >"$out" 2>&1 || true
+  local soname
+  while read -r soname; do
+    [[ -n "$soname" ]] || continue
+    if host_provided "$soname"; then
+      echo "  host-provided (excludelist): $soname" >&2
+    else
+      echo "$soname"
+    fi
+  done < <(awk '/not found/ {print $1}' "$out")
+}
+
+assert_bundled() {
   local target="$1"
   local label="$2"
   local out="$3"
-  command -v ldd >/dev/null 2>&1 || return 0
-  env LD_LIBRARY_PATH="$bundle_ld_path" ldd "$target" >"$out" 2>&1 || true
-  if grep -q "not found" "$out"; then
-    echo "unresolved libraries for $label:" >&2
-    grep "not found" "$out" >&2
+  local missing
+  missing="$(missing_from_bundle "$target" "$out")"
+  if [[ -n "$missing" ]]; then
+    echo "missing from the AppImage, needed by $label:" >&2
+    echo "$missing" | sed 's/^/  /' >&2
+    printf '%s\n' "$missing" >>"$out"
     fail "bundle not self-contained" \
-      "$label needs libraries the AppImage does not carry" "$out"
+      "$label needs $(echo "$missing" | tr '\n' ' ')which the AppImage does not carry" "$out"
   fi
+  echo "ok: $label has no unbundled dependencies"
 }
 
-assert_no_unresolved "$main_bin" "main binary" "$LDD_LOG"
+assert_bundled "$main_bin" "main binary" "$LDD_LOG"
 
-# Qt platform plugins are dlopen'd, so they never appear in the main binary's
-# dependency list -- this is exactly where missing libxcb/libxkbcommon hide.
-plugin_count=0
+# Qt dlopens its platform plugin, so it never shows up in the main binary's
+# dependency list -- this is exactly where a missing libxcb-* or libxkbcommon
+# hides. Only the xcb plugin is load-bearing for us; the others are reported but
+# not enforced, since a plugin we never load cannot break the app.
+qxcb="$(find squashfs-root -type f -name 'libqxcb.so' -print -quit 2>/dev/null || true)"
+if [[ -n "$qxcb" ]]; then
+  assert_bundled "$qxcb" "libqxcb.so (Qt xcb platform plugin)" "$LOG_DIR/ldd-libqxcb.txt"
+else
+  fail "Qt plugin missing" "libqxcb.so not found in the AppImage" "$EXTRACT_LOG"
+fi
+
 while IFS= read -r plugin; do
-  plugin_count=$((plugin_count + 1))
-  assert_no_unresolved "$plugin" "$(basename "$plugin")" \
-    "$LOG_DIR/ldd-$(basename "$plugin").txt"
+  [[ "$plugin" == "$qxcb" ]] && continue
+  other="$(missing_from_bundle "$plugin" "$LOG_DIR/ldd-$(basename "$plugin").txt")"
+  if [[ -n "$other" ]]; then
+    echo "note: $(basename "$plugin") (unused) is missing $(echo "$other" | tr '\n' ' ')"
+  fi
 done < <(find squashfs-root -type f -path '*/plugins/platforms/*.so' 2>/dev/null || true)
-echo "checked $plugin_count Qt platform plugin(s) for unresolved dependencies"
 
 run_launch_check \
   "direct launch" \
