@@ -4,6 +4,8 @@ on:
   pull_request:
   workflow_dispatch:
   push:
+    branches:
+      - main
     tags:
       - "v*"
 
@@ -19,6 +21,14 @@ jobs:
 
       - name: Build macOS package
         run: bash scripts/package_macos_pyqt.sh
+
+      - name: Upload macOS DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg
+          path: dist/Rockchip-Flash-Tool-macOS-universal.dmg
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Upload macOS release asset
         if: startsWith(github.ref, 'refs/tags/')
@@ -44,6 +54,14 @@ jobs:
       - name: Build Windows package
         shell: pwsh
         run: ./scripts/package_windows_pyqt.ps1
+
+      - name: Upload Windows zip artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-zip
+          path: dist/Rockchip-Flash-Tool-windows-x64.zip
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Upload Windows release asset
         if: startsWith(github.ref, 'refs/tags/')
@@ -100,3 +118,153 @@ jobs:
         with:
           files: dist/Rockchip-Flash-Tool-linux-x86_64.AppImage
           generate_release_notes: false
+
+  # Smoke tests: prove the artifact is well formed, starts on the target OS and
+  # carries a working upgrade_tool. Flashing itself needs a USB device and
+  # cannot be covered here. Linux is covered by test-linux-appimage-compat.yml.
+  smoke-macos:
+    name: Smoke ${{ matrix.label }}
+    needs: build-macos
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-13
+            label: macOS 13 Intel
+          - runner: macos-15
+            label: macOS 15 Apple Silicon
+    steps:
+      - name: Download macOS DMG artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-dmg
+          path: artifacts
+
+      - name: Mount DMG and stage the app
+        run: |
+          set -euo pipefail
+          hdiutil attach artifacts/Rockchip-Flash-Tool-macOS-universal.dmg \
+            -mountpoint /Volumes/rkft -nobrowse -readonly
+          cp -R "/Volumes/rkft/Rockchip Flash Tool.app" "$RUNNER_TEMP/"
+          hdiutil detach /Volumes/rkft
+          xattr -dr com.apple.quarantine "$RUNNER_TEMP/Rockchip Flash Tool.app" || true
+
+      - name: Check bundle shape
+        run: |
+          set -euo pipefail
+          APP="$RUNNER_TEMP/Rockchip Flash Tool.app"
+          BIN="$APP/Contents/MacOS/Rockchip Flash Tool"
+          test -x "$BIN"
+          codesign -v --verbose=2 "$APP"
+          archs="$(lipo -archs "$BIN")"
+          echo "archs: $archs"
+          grep -q x86_64 <<<"$archs"
+          grep -q arm64 <<<"$archs"
+
+      - name: Launch app
+        run: |
+          set -euo pipefail
+          APP="$RUNNER_TEMP/Rockchip Flash Tool.app"
+          export RK_FLASH_TOOL_AUTO_EXIT_MS=2500 QT_DEBUG_PLUGINS=1
+          "$APP/Contents/MacOS/Rockchip Flash Tool" >launch.log 2>&1 &
+          pid=$!
+          for _ in $(seq 1 40); do
+            kill -0 "$pid" 2>/dev/null || break
+            sleep 1
+          done
+          if kill -0 "$pid" 2>/dev/null; then
+            kill -9 "$pid" || true
+            echo "::error::app did not exit within 40s"
+            sed -n '1,60p' launch.log || true
+            exit 1
+          fi
+          set +e
+          wait "$pid"
+          rc=$?
+          set -e
+          sed -n '1,60p' launch.log || true
+          if [[ $rc -ne 0 ]]; then
+            echo "::error::app exited with $rc"
+            exit 1
+          fi
+          if grep -qi "could not load the Qt platform plugin" launch.log; then
+            echo "::error::Qt platform plugin failed to load"
+            exit 1
+          fi
+
+      - name: Run bundled upgrade_tool
+        run: |
+          set -euo pipefail
+          APP="$RUNNER_TEMP/Rockchip Flash Tool.app"
+          tool="$(find "$APP" -type f -name upgrade_tool | head -n 1)"
+          if [[ -z "$tool" ]]; then
+            echo "::error::bundled upgrade_tool missing from the app bundle"
+            exit 1
+          fi
+          echo "found: $tool"
+          chmod +x "$tool"
+          "$tool" -v || true
+          # LD with no device attached prints "connected(0)" and exits 0.
+          "$tool" LD
+
+      - name: Upload launch log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-macos-${{ matrix.runner }}-log
+          path: launch.log
+          if-no-files-found: warn
+
+  smoke-windows:
+    name: Smoke Windows
+    needs: build-windows
+    runs-on: windows-2022
+    steps:
+      - name: Download Windows zip artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-zip
+          path: artifacts
+
+      - name: Unpack and check layout
+        shell: pwsh
+        run: |
+          Expand-Archive -Path "artifacts\Rockchip-Flash-Tool-windows-x64.zip" -DestinationPath app -Force
+          if (-not (Test-Path "app\Rockchip Flash Tool.exe")) { throw "Rockchip Flash Tool.exe missing from the zip" }
+          if (-not (Test-Path "app\_internal")) { throw "_internal directory missing from the zip" }
+
+      - name: Launch app
+        shell: pwsh
+        run: |
+          $env:RK_FLASH_TOOL_AUTO_EXIT_MS = "2500"
+          $p = Start-Process -FilePath "app\Rockchip Flash Tool.exe" -PassThru -NoNewWindow `
+                 -RedirectStandardOutput launch.out -RedirectStandardError launch.err
+          if (-not $p.WaitForExit(60000)) {
+            $p.Kill()
+            throw "app did not exit within 60s"
+          }
+          Get-Content launch.out, launch.err -ErrorAction SilentlyContinue
+          if ($p.ExitCode -ne 0) { throw "app exited with $($p.ExitCode)" }
+
+      - name: Run bundled upgrade_tool
+        shell: pwsh
+        run: |
+          $t = Get-ChildItem -Path app -Recurse -Filter upgrade_tool.exe | Select-Object -First 1
+          if (-not $t) { throw "bundled upgrade_tool.exe missing from the zip" }
+          Write-Host "found: $($t.FullName)"
+          & $t.FullName LD
+          # Enumeration goes through the rockusb driver, which is absent on the
+          # runner. Record the outcome instead of asserting on it.
+          Write-Host "upgrade_tool LD exit code: $LASTEXITCODE"
+          exit 0
+
+      - name: Upload launch logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-windows-logs
+          path: |
+            launch.out
+            launch.err
+          if-no-files-found: warn
