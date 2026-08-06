@@ -3,12 +3,6 @@ name: Build And Release
 on:
   pull_request:
   workflow_dispatch:
-    inputs:
-      windows_onefile:
-        description: "Also build a single-file Windows exe, for comparing startup cost"
-        type: boolean
-        required: false
-        default: false
   push:
     branches:
       - main
@@ -55,34 +49,6 @@ jobs:
         with:
           name: windows-zip
           path: dist/Rockchip-Flash-Tool-windows-x64.zip
-          if-no-files-found: error
-          retention-days: 7
-
-      # Opt-in comparison build. PyInstaller onefile unpacks the whole bundle to
-      # %TEMP% on every launch, so this exists to measure that cost on real
-      # hardware rather than argue about it.
-      - name: Build single-file Windows exe
-        if: ${{ inputs.windows_onefile }}
-        shell: pwsh
-        run: |
-          $venvPython = ".venv-win/Scripts/python.exe"
-          & $venvPython -m PyInstaller `
-            --noconfirm --clean --windowed --onefile `
-            --name "Rockchip Flash Tool onefile" `
-            --icon "assets/icon.ico" `
-            --add-data "assets/icon.ico;assets" `
-            --add-data "tools;tools" `
-            --add-data "rkbin;rkbin" `
-            rk_flash_tool/__main__.py
-          Get-Item "dist/Rockchip Flash Tool onefile.exe" |
-            Select-Object Name, @{n = "MB"; e = { [math]::Round($_.Length / 1MB, 1) } }
-
-      - name: Upload single-file Windows exe
-        if: ${{ inputs.windows_onefile }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-onefile
-          path: dist/Rockchip Flash Tool onefile.exe
           if-no-files-found: error
           retention-days: 7
 
