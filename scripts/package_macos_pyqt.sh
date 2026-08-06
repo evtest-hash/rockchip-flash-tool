@@ -3,6 +3,9 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_NAME="Rockchip Flash Tool"
+# Reverse-DNS, as macOS expects. PyInstaller otherwise derives it from --name,
+# which yields "Rockchip Flash Tool" -- spaces and all.
+BUNDLE_ID="${BUNDLE_ID:-com.focalcrest.rockchip-flash-tool}"
 DMG_NAME="${DMG_NAME:-Rockchip-Flash-Tool-macOS-universal.dmg}"
 ICON_PNG="${ICON_PNG:-assets-icon-1024.png}"
 ICON_ICNS="${ICON_ICNS:-assets/icon.icns}"
@@ -48,8 +51,9 @@ python -m PyInstaller \
   --windowed \
   --target-arch "$TARGET_ARCH" \
   --name "$APP_NAME" \
+  --osx-bundle-identifier "$BUNDLE_ID" \
   --icon "$ICON_ICNS" \
-  --add-data "tools:tools" \
+  --add-data "tools/darwin:tools/darwin" \
   --add-data "rkbin:rkbin" \
   rk_flash_tool/__main__.py
 
@@ -59,12 +63,24 @@ mkdir -p "$STAGE_DIR"
 cp -R "dist/${APP_NAME}.app" "$STAGE_DIR/"
 ln -s /Applications "$STAGE_DIR/Applications"
 
-hdiutil create \
-  -volname "$APP_NAME" \
-  -srcfolder "$STAGE_DIR" \
-  -ov \
-  -format UDZO \
-  "dist/${DMG_NAME}"
+# hdiutil intermittently fails with "Resource busy" on CI runners
+# (actions/runner-images#7522), so retry rather than lose a release build.
+for attempt in $(seq 1 10); do
+  if hdiutil create \
+    -volname "$APP_NAME" \
+    -srcfolder "$STAGE_DIR" \
+    -ov \
+    -format UDZO \
+    "dist/${DMG_NAME}"; then
+    break
+  fi
+  if [[ "$attempt" -eq 10 ]]; then
+    echo "hdiutil create failed after 10 attempts" >&2
+    exit 1
+  fi
+  echo "hdiutil create failed (attempt $attempt), retrying in 5s..." >&2
+  sleep 5
+done
 
 rm -rf "$STAGE_DIR"
 echo "Done: dist/${DMG_NAME}"

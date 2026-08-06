@@ -140,6 +140,23 @@ jobs:
           grep -q x86_64 <<<"$archs"
           grep -q arm64 <<<"$archs"
 
+          # Reverse-DNS bundle id, required for notarization to behave.
+          bundle_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' \
+            "$APP/Contents/Info.plist")"
+          echo "bundle id: $bundle_id"
+          if [[ "$bundle_id" != com.*.* || "$bundle_id" == *" "* ]]; then
+            echo "::error::CFBundleIdentifier is not reverse-DNS: $bundle_id"
+            exit 1
+          fi
+
+          # Only this platform's flashing tool belongs in a macOS bundle.
+          if find "$APP" -type d \( -path '*/tools/linux' -o -path '*/tools/windows' \) |
+               grep -q .; then
+            echo "::error::the app bundles another platform's tools"
+            find "$APP" -type d -path '*/tools/*'
+            exit 1
+          fi
+
       - name: Launch app
         run: |
           set -euo pipefail
