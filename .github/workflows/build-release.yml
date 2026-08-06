@@ -196,17 +196,35 @@ jobs:
           tool="$(find "$APP" -type f -path '*/tools/darwin/upgrade_tool' -print -quit)"
           arch -x86_64 "$tool" LD
 
-      - name: Probe the whole app as x86_64 under Rosetta
-        # Non-blocking for now: exercises the x86_64 half of the bundled Python
-        # and Qt stack, not just the flashing tool. Tighten once it has passed.
-        continue-on-error: true
+      - name: Launch the app as x86_64 under Rosetta
+        # Exercises the x86_64 half of the bundled Python and Qt stack, not just
+        # the flashing tool. Rosetta's first translation takes ~15s, hence the
+        # roomier budget than the native launch.
         run: |
-          set -uo pipefail
+          set -euo pipefail
           APP="$RUNNER_TEMP/Rockchip Flash Tool.app"
           export RK_FLASH_TOOL_AUTO_EXIT_MS=2500
-          arch -x86_64 "$APP/Contents/MacOS/Rockchip Flash Tool" >rosetta-launch.log 2>&1
-          echo "x86_64 app launch exit: $?"
-          sed -n '1,40p' rosetta-launch.log || true
+          arch -x86_64 "$APP/Contents/MacOS/Rockchip Flash Tool" >rosetta-launch.log 2>&1 &
+          pid=$!
+          for _ in $(seq 1 60); do
+            kill -0 "$pid" 2>/dev/null || break
+            sleep 1
+          done
+          if kill -0 "$pid" 2>/dev/null; then
+            kill -9 "$pid" || true
+            echo "::error::x86_64 app did not exit within 60s"
+            sed -n '1,60p' rosetta-launch.log || true
+            exit 1
+          fi
+          set +e
+          wait "$pid"
+          rc=$?
+          set -e
+          sed -n '1,60p' rosetta-launch.log || true
+          if [[ $rc -ne 0 ]]; then
+            echo "::error::x86_64 app exited with $rc"
+            exit 1
+          fi
 
       - name: Upload launch log
         if: always()
