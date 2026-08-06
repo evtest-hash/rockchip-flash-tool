@@ -535,7 +535,7 @@ class UpgradeTool:
             raise UpgradeToolError(f"Firmware not found: {p}")
         out = self._run("UF", str(p), timeout=1200, progress_callback=progress_callback)
         text = (out.stdout or "") + (out.stderr or "")
-        return self._ok(text, "upgrade firmware ok", "upgrade ok", "success") or out.returncode == 0
+        return self._ok(text, "upgrade firmware ok") or out.returncode == 0
 
     def write_image(self, image_path: str | Path, progress_callback: Callable[[int | None, str], None] | None = None) -> bool:
         p = Path(image_path)
@@ -543,9 +543,9 @@ class UpgradeTool:
             raise UpgradeToolError(f"Image not found: {p}")
         out = self._run("WL", "0", str(p), timeout=1200, progress_callback=progress_callback)
         text = (out.stdout or "") + (out.stderr or "")
-        return self._ok(text, "write lba ok", "download image ok", "success") or out.returncode == 0
+        return self._ok(text, "download image ok") or out.returncode == 0
 
     def reset_device(self) -> bool:
         out = self._run("RD", timeout=30)
         text = (out.stdout or "") + (out.stderr or "")
-        return self._ok(text, "reset device ok", "reset ok", "success") or out.returncode == 0
+        return self._ok(text, "reset device ok") or out.returncode == 0
