@@ -197,9 +197,12 @@ jobs:
         run: |
           set -euo pipefail
           APP="$RUNNER_TEMP/Rockchip Flash Tool.app"
-          tool="$(find "$APP" -type f -name upgrade_tool | head -n 1)"
+          # All three platforms' tool directories are bundled, so match the
+          # darwin one explicitly -- the Linux ELF would exec-fail with 126.
+          tool="$(find "$APP" -type f -path '*/tools/darwin/upgrade_tool' -print -quit)"
           if [[ -z "$tool" ]]; then
-            echo "::error::bundled upgrade_tool missing from the app bundle"
+            echo "::error::bundled darwin upgrade_tool missing from the app bundle"
+            find "$APP" -type f -name 'upgrade_tool*' || true
             exit 1
           fi
           echo "found: $tool"
@@ -250,8 +253,9 @@ jobs:
       - name: Run bundled upgrade_tool
         shell: pwsh
         run: |
-          $t = Get-ChildItem -Path app -Recurse -Filter upgrade_tool.exe | Select-Object -First 1
-          if (-not $t) { throw "bundled upgrade_tool.exe missing from the zip" }
+          $t = Get-ChildItem -Path app -Recurse -Filter upgrade_tool.exe |
+                 Where-Object { $_.FullName -match '\\tools\\windows\\' } | Select-Object -First 1
+          if (-not $t) { throw "bundled windows upgrade_tool.exe missing from the zip" }
           Write-Host "found: $($t.FullName)"
           & $t.FullName LD
           # Enumeration goes through the rockusb driver, which is absent on the
