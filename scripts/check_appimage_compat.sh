@@ -163,6 +163,39 @@ else
   echo "ldd not available in container" >"$LDD_LOG"
 fi
 
+# Self-containment. An AppImage is supposed to carry everything but the kernel,
+# glibc and the graphics drivers, so nothing it needs may resolve from the host.
+# ldd has to see the same search path AppRun exports, otherwise the bundle's own
+# Qt libraries would look missing.
+app_base="$(cd "$(dirname "$main_bin")" && pwd)"
+bundle_ld_path="$PWD/squashfs-root/usr/lib:$app_base:$app_base/_internal:$app_base/_internal/PySide6/Qt/lib"
+
+assert_no_unresolved() {
+  local target="$1"
+  local label="$2"
+  local out="$3"
+  command -v ldd >/dev/null 2>&1 || return 0
+  env LD_LIBRARY_PATH="$bundle_ld_path" ldd "$target" >"$out" 2>&1 || true
+  if grep -q "not found" "$out"; then
+    echo "unresolved libraries for $label:" >&2
+    grep "not found" "$out" >&2
+    fail "bundle not self-contained" \
+      "$label needs libraries the AppImage does not carry" "$out"
+  fi
+}
+
+assert_no_unresolved "$main_bin" "main binary" "$LDD_LOG"
+
+# Qt platform plugins are dlopen'd, so they never appear in the main binary's
+# dependency list -- this is exactly where missing libxcb/libxkbcommon hide.
+plugin_count=0
+while IFS= read -r plugin; do
+  plugin_count=$((plugin_count + 1))
+  assert_no_unresolved "$plugin" "$(basename "$plugin")" \
+    "$LOG_DIR/ldd-$(basename "$plugin").txt"
+done < <(find squashfs-root -type f -path '*/plugins/platforms/*.so' 2>/dev/null || true)
+echo "checked $plugin_count Qt platform plugin(s) for unresolved dependencies"
+
 run_launch_check \
   "direct launch" \
   "$DIRECT_LOG" \

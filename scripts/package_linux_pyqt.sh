@@ -115,9 +115,29 @@ export OUTPUT=appimage
 export ARCH=x86_64
 export LDAI_OUTPUT="$ROOT_DIR/dist/$APPIMAGE_NAME"
 
+# Qt loads its platform plugin with dlopen, so linuxdeploy's dependency walk over
+# the main binary never reaches libqxcb.so and its libxcb/libxkbcommon needs are
+# left to the host. Point linuxdeploy at the plugin directories so those land in
+# the AppDir and the AppImage really is self-contained.
+DEPLOY_DEPS_ARGS=()
+for rel in "_internal/PySide6/Qt/plugins" "PySide6/Qt/plugins" "PyQt5/Qt5/plugins"; do
+  plugin_root="$APP_LIB_DIR/$rel"
+  [[ -d "$plugin_root" ]] || continue
+  for sub in platforms xcbglintegrations platformthemes imageformats iconengines; do
+    [[ -d "$plugin_root/$sub" ]] || continue
+    DEPLOY_DEPS_ARGS+=(--deploy-deps-only "$plugin_root/$sub")
+    echo "deploying deps of $rel/$sub"
+  done
+  break
+done
+if [[ ${#DEPLOY_DEPS_ARGS[@]} -eq 0 ]]; then
+  echo "Warning: no Qt plugin directory found under $APP_LIB_DIR" >&2
+fi
+
 APPIMAGE_EXTRACT_AND_RUN=1 "$LINUXDEPLOY_BIN" \
   --appdir "$APPDIR" \
   --executable "$APP_BIN" \
+  ${DEPLOY_DEPS_ARGS[@]+"${DEPLOY_DEPS_ARGS[@]}"} \
   --desktop-file "$APPDIR/usr/share/applications/rockchip-flash-tool.desktop" \
   --icon-file "$LINUXDEPLOY_ICON" \
   --output appimage

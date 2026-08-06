@@ -103,23 +103,14 @@ jobs:
   # Smoke tests: prove the artifact is well formed, starts on the target OS and
   # carries a working upgrade_tool. Flashing itself needs a USB device and
   # cannot be covered here. Linux is covered by test-linux-appimage-compat.yml.
+  # Apple Silicon only. Intel runners can sit queued for a long time, and
+  # continue-on-error does not help: gate still waits for the leg to finish. The
+  # runner ships Rosetta 2, so the x86_64 half of the universal build is covered
+  # from here instead.
   smoke-macos:
-    name: Smoke ${{ matrix.label }}
+    name: Smoke macOS
     needs: build-macos
-    runs-on: ${{ matrix.runner }}
-    # Intel runners are scarce and can sit queued for a long time. Keep the leg
-    # for signal, but do not let it stall a release.
-    continue-on-error: ${{ matrix.advisory }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: macos-15
-            label: macOS 15 Apple Silicon
-            advisory: false
-          - runner: macos-13
-            label: macOS 13 Intel
-            advisory: true
+    runs-on: macos-15
     steps:
       - name: Download macOS DMG artifact
         uses: actions/download-artifact@v4
@@ -197,23 +188,33 @@ jobs:
           # LD with no device attached prints "connected(0)" and exits 0.
           "$tool" LD
 
-      - name: Probe the x86_64 slice under Rosetta
-        # Non-blocking: tells us whether the arm64 runner can exercise the other
-        # half of the universal binary, which would let us drop the Intel leg.
+      - name: Run bundled upgrade_tool as x86_64 under Rosetta
+        run: |
+          set -euo pipefail
+          APP="$RUNNER_TEMP/Rockchip Flash Tool.app"
+          tool="$(find "$APP" -type f -path '*/tools/darwin/upgrade_tool' -print -quit)"
+          arch -x86_64 "$tool" LD
+
+      - name: Probe the whole app as x86_64 under Rosetta
+        # Non-blocking for now: exercises the x86_64 half of the bundled Python
+        # and Qt stack, not just the flashing tool. Tighten once it has passed.
         continue-on-error: true
         run: |
           set -uo pipefail
           APP="$RUNNER_TEMP/Rockchip Flash Tool.app"
-          tool="$(find "$APP" -type f -path '*/tools/darwin/upgrade_tool' -print -quit)"
-          arch -x86_64 "$tool" LD
-          echo "rosetta probe exit: $?"
+          export RK_FLASH_TOOL_AUTO_EXIT_MS=2500
+          arch -x86_64 "$APP/Contents/MacOS/Rockchip Flash Tool" >rosetta-launch.log 2>&1
+          echo "x86_64 app launch exit: $?"
+          sed -n '1,40p' rosetta-launch.log || true
 
       - name: Upload launch log
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: smoke-macos-${{ matrix.runner }}-log
-          path: launch.log
+          name: smoke-macos-logs
+          path: |
+            launch.log
+            rosetta-launch.log
           if-no-files-found: warn
 
   smoke-windows:
@@ -254,11 +255,10 @@ jobs:
                  Where-Object { $_.FullName -match '\\tools\\windows\\' } | Select-Object -First 1
           if (-not $t) { throw "bundled windows upgrade_tool.exe missing from the zip" }
           Write-Host "found: $($t.FullName)"
+          # Verified on the runner: with no rockusb driver and no device, LD
+          # still prints "connected(0)" and exits 0.
           & $t.FullName LD
-          # Enumeration goes through the rockusb driver, which is absent on the
-          # runner. Record the outcome instead of asserting on it.
-          Write-Host "upgrade_tool LD exit code: $LASTEXITCODE"
-          exit 0
+          if ($LASTEXITCODE -ne 0) { throw "upgrade_tool LD exited with $LASTEXITCODE" }
 
       - name: Upload launch logs
         if: always()
@@ -270,6 +270,10 @@ jobs:
             launch.err
           if-no-files-found: warn
 
+  # The containers get only the test harness (xvfb, file), FUSE -- which the
+  # AppImage runtime itself needs to self-mount -- and mesa, since graphics
+  # drivers belong to the host. Everything else, libxcb and libxkbcommon in
+  # particular, has to come out of the AppImage or it is not self-contained.
   smoke-linux:
     name: Smoke ${{ matrix.label }}
     needs: build-linux
@@ -286,10 +290,7 @@ jobs:
             install: |
               apt-get update
               DEBIAN_FRONTEND=noninteractive apt-get install -y \
-                file fuse libfuse2 libegl1 libgbm1 libopengl0 \
-                libxkbcommon-x11-0 libxcb-cursor0 libxcb-xkb1 libxcb-util1 \
-                libxcb-image0 libxcb-icccm4 libxcb-keysyms1 \
-                libxcb-render-util0 libxcb-shape0 xauth xvfb
+                file fuse libfuse2 libegl1 libgbm1 libopengl0 xauth xvfb
           - id: ubuntu2404
             label: Ubuntu 24.04
             image: ubuntu:24.04
@@ -297,10 +298,7 @@ jobs:
             install: |
               apt-get update
               DEBIAN_FRONTEND=noninteractive apt-get install -y \
-                file fuse3 libfuse2t64 libegl1 libgbm1 libopengl0 \
-                libxkbcommon-x11-0 libxcb-cursor0 libxcb-xkb1 libxcb-util1 \
-                libxcb-image0 libxcb-icccm4 libxcb-keysyms1 \
-                libxcb-render-util0 libxcb-shape0 xauth xvfb
+                file fuse3 libfuse2t64 libegl1 libgbm1 libopengl0 xauth xvfb
           - id: debian12
             label: Debian 12
             image: debian:12
@@ -308,37 +306,30 @@ jobs:
             install: |
               apt-get update
               DEBIAN_FRONTEND=noninteractive apt-get install -y \
-                file fuse3 libfuse2 libegl1 libgbm1 libopengl0 \
-                libxkbcommon-x11-0 libxcb-cursor0 libxcb-xkb1 libxcb-util1 \
-                libxcb-image0 libxcb-icccm4 libxcb-keysyms1 \
-                libxcb-render-util0 libxcb-shape0 xauth xvfb
+                file fuse3 libfuse2 libegl1 libgbm1 libopengl0 xauth xvfb
           - id: fedora40
             label: Fedora 40
             image: fedora:40
             advisory: false
             install: |
               dnf install -y \
-                file findutils fuse fuse-libs mesa-libEGL mesa-libgbm mesa-libGL \
-                libxkbcommon-x11 xcb-util-cursor xcb-util-image xcb-util-keysyms \
-                xcb-util-renderutil xcb-util-wm xauth xorg-x11-server-Xvfb
+                file findutils fuse fuse-libs mesa-libEGL mesa-libgbm \
+                mesa-libGL xauth xorg-x11-server-Xvfb
           - id: fedora41
             label: Fedora 41
             image: fedora:41
             advisory: true
             install: |
               dnf install -y \
-                file findutils fuse fuse-libs mesa-libEGL mesa-libgbm mesa-libGL \
-                libxkbcommon-x11 xcb-util-cursor xcb-util-image xcb-util-keysyms \
-                xcb-util-renderutil xcb-util-wm xauth xorg-x11-server-Xvfb
+                file findutils fuse fuse-libs mesa-libEGL mesa-libgbm \
+                mesa-libGL xauth xorg-x11-server-Xvfb
           - id: archlinux
             label: Arch Linux
             image: archlinux:latest
             advisory: true
             install: |
               pacman -Syu --noconfirm \
-                file findutils fuse2 mesa libxkbcommon-x11 xcb-util-cursor \
-                xcb-util-image xcb-util-keysyms xcb-util-renderutil xcb-util-wm \
-                xorg-xauth xorg-server-xvfb
+                file findutils fuse2 mesa xorg-xauth xorg-server-xvfb
     steps:
       - name: Checkout
         uses: actions/checkout@v4
