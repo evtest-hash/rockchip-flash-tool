@@ -57,6 +57,9 @@ class MainWindow(QMainWindow):
         self._setup_ui()
         self._try_init_tool()
         self._setup_polling()
+        if platform.system() == "Windows":
+            # Deferred so the main window is painted before the dialog can appear.
+            QTimer.singleShot(0, self._startup_driver_check)
 
     def _setup_ui(self) -> None:
         self.setWindowTitle(f"{__app_name__} v{__version__}")
@@ -194,9 +197,6 @@ class MainWindow(QMainWindow):
         if not self._tool_available:
             QMessageBox.warning(self, "Error", "upgrade_tool not found.")
             return
-        if platform.system() == "Windows":
-            if not self._ensure_windows_driver():
-                return
         fw = self._edit_firmware.text().strip()
         if not fw:
             QMessageBox.warning(self, "No Firmware", "Please select firmware first.")
@@ -215,6 +215,13 @@ class MainWindow(QMainWindow):
         self._worker.progress.connect(self._on_flash_progress, Qt.ConnectionType.QueuedConnection)
         self._worker.finished.connect(self._on_flash_finished)
         self._worker.start()
+
+    @Slot()
+    def _startup_driver_check(self) -> None:
+        if not self._tool_available:
+            return
+        if self._ensure_windows_driver():
+            self._poll_device()
 
     def _ensure_windows_driver(self) -> bool:
         if not self._flasher:
@@ -246,17 +253,11 @@ class MainWindow(QMainWindow):
             self._status.showMessage("Installing Rockchip driver...")
             tool.install_windows_driver()
         except DriverInstallError as e:
-            QMessageBox.critical(
-                self,
-                "Driver Install Failed",
-                f"{e}\n\nPlease run DriverInstall.exe as Administrator and retry.",
-            )
+            QMessageBox.critical(self, "Driver Install Failed", str(e))
             return False
         except Exception as e:  # noqa: BLE001
             QMessageBox.critical(
-                self,
-                "Driver Install Failed",
-                f"Unexpected error: {e}\n\nPlease run DriverInstall.exe as Administrator and retry.",
+                self, "Driver Install Failed", f"Unexpected error: {e}"
             )
             return False
 

@@ -1,5 +1,0 @@
-2023/11/09 v5.13:
-1.increase bulk max buffer size as 16MB
-
-2022/02/28 v5.12:
-1.fix 471/472 timeout bug

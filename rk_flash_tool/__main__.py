@@ -4,6 +4,12 @@ import os
 import sys
 from pathlib import Path
 
+# Elevated child process: handle before Qt is imported so it stays lightweight.
+if sys.platform.startswith("win") and "--install-rockusb-driver" in sys.argv:
+    from rk_flash_tool.win_driver import ELEVATED_FLAG, elevated_main
+
+    sys.exit(elevated_main(sys.argv[sys.argv.index(ELEVATED_FLAG):]))
+
 from PySide6.QtCore import QTimer
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication

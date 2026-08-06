@@ -103,10 +103,6 @@ class UpgradeTool:
     def tool_path(self) -> Path:
         return self._tool
 
-    @property
-    def driver_installer_path(self) -> Path:
-        return self._cwd / "DriverAssitant_v5.13" / "DriverInstall.exe"
-
     def _ensure_windows_stdout_nobuffer(self) -> None:
         if os.name != "nt":
             return
@@ -492,28 +488,12 @@ class UpgradeTool:
     def install_windows_driver(self) -> None:
         if os.name != "nt":
             return
-        installer = self.driver_installer_path
-        if not installer.exists():
-            raise DriverInstallError(f"Driver installer not found: {installer}")
+        from rk_flash_tool.win_driver import DriverPackageError, install_elevated
 
-        # DriverInstall.exe requires elevation on Windows; launch with UAC prompt.
-        ps_cmd = (
-            f"$p=Start-Process -FilePath '{installer}' -WorkingDirectory '{installer.parent}' "
-            "-Verb RunAs -Wait -PassThru; "
-            "if ($null -eq $p) { exit 1 } ; exit $p.ExitCode"
-        )
-        out = subprocess.run(
-            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps_cmd],
-            capture_output=True,
-            text=True,
-            timeout=300,
-        )
-        if out.returncode != 0:
-            details = ((out.stdout or "") + (out.stderr or "")).strip()
-            suffix = f" Details: {details}" if details else ""
-            raise DriverInstallError(
-                f"Driver installer exited with code {out.returncode}.{suffix}"
-            )
+        try:
+            install_elevated()
+        except DriverPackageError as e:
+            raise DriverInstallError(str(e)) from e
 
     def list_devices(self) -> list[DeviceInfo]:
         out = self._run("LD")
