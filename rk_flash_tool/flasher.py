@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 import time
 from dataclasses import dataclass
 from enum import Enum
@@ -10,8 +9,6 @@ from typing import Callable
 from rk_flash_tool.chip_db import ChipDatabase
 from rk_flash_tool.image_format import ImageFormat, ImageInfo, detect_image_format, validate_firmware_for_chip
 from rk_flash_tool.upgrade_tool import DeviceInfo, DeviceNotFoundError, UpgradeTool, UpgradeToolError
-
-logger = logging.getLogger("rk_flash_tool.flasher")
 
 
 class FlashStage(Enum):
@@ -92,7 +89,7 @@ class Flasher:
             info = detect_image_format(image_path)
             is_valid, msg = validate_firmware_for_chip(info, dev.chip_model)
             if not is_valid:
-                logger.warning("Validation warning: %s", msg)
+                self._emit(FlashStage.DETECT_FORMAT, msg, 15)
             self._check_cancel()
 
             if info.format.is_rk_format:
@@ -109,7 +106,7 @@ class Flasher:
             if info.format == ImageFormat.RAW:
                 self._emit(FlashStage.FLASH, "Resetting device...", 98)
                 if not self._tool.reset_device():
-                    logger.warning("Raw flash completed, but reset command did not report success.")
+                    self._emit(FlashStage.FLASH, "Device reset did not confirm; power-cycle the board.", 99)
             self._emit(FlashStage.DONE, "Flash completed successfully.", 100)
             return True
         except UpgradeToolError as e:

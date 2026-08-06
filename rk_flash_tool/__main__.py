@@ -15,7 +15,6 @@ from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 
 from rk_flash_tool import __app_name__
-from rk_flash_tool.logger import setup_logging
 from rk_flash_tool.main_window import MainWindow
 
 
@@ -35,7 +34,6 @@ def _resolve_icon_path() -> Path | None:
 
 
 def main() -> None:
-    setup_logging()
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
     app.setApplicationName(__app_name__)

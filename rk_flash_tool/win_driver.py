@@ -3,20 +3,21 @@
 from __future__ import annotations
 
 import ctypes
-import logging
 import sys
 from ctypes import wintypes
 from pathlib import Path
 
-logger = logging.getLogger("rk_flash_tool.win_driver")
-
 ELEVATED_FLAG = "--install-rockusb-driver"
 
+# The elevated child is hidden and has no console, so its exit code is the only
+# channel back. Anything other than these two is the verbatim Win32 error from
+# DiInstallDriverW; the sentinel is picked so it cannot be mistaken for one.
 EXIT_OK = 0
-EXIT_UNSUPPORTED = 1
-EXIT_PACKAGE_MISSING = 2
-EXIT_INSTALL_FAILED = 3
-EXIT_BAD_ARGS = 4
+EXIT_BAD_ARGS = 0x0E03
+
+_EXIT_MESSAGES = {
+    EXIT_BAD_ARGS: "Internal error: invalid driver installation request.",
+}
 
 _DRIVER_ROOT = Path(__file__).resolve().parent.parent / "tools" / "windows" / "driver"
 _ERROR_CANCELLED = 1223
@@ -165,20 +166,21 @@ def install_elevated(timeout_ms: int = 600_000) -> None:
 
     if code.value != EXIT_OK:
         raise DriverPackageError(
-            f"Driver installation failed (code {code.value}). See log for details."
+            _EXIT_MESSAGES.get(
+                code.value,
+                f"Windows rejected the driver installation (0x{code.value:08X}).",
+            )
         )
 
 
 def run_elevated_install(inf_arg: str) -> int:
-    """Entry point for the elevated child process."""
+    """Entry point for the elevated child process. Returns its exit code."""
     try:
         inf = Path(inf_arg).resolve()
     except OSError:
-        logger.error("Invalid INF argument: %s", inf_arg)
         return EXIT_BAD_ARGS
 
     if not inf.is_file() or _DRIVER_ROOT.resolve() not in inf.parents:
-        logger.error("INF outside the bundled driver directory: %s", inf)
         return EXIT_BAD_ARGS
 
     newdev = ctypes.WinDLL("newdev", use_last_error=True)
@@ -192,26 +194,16 @@ def run_elevated_install(inf_arg: str) -> int:
 
     reboot = wintypes.BOOL(False)
     ctypes.set_last_error(0)
-    ok = newdev.DiInstallDriverW(None, str(inf), 0, ctypes.byref(reboot))
-    if not ok:
-        logger.error(
-            "DiInstallDriverW failed for %s (error 0x%08X)", inf, ctypes.get_last_error()
-        )
-        return EXIT_INSTALL_FAILED
-
-    logger.info("Driver installed from %s (reboot required: %s)", inf, bool(reboot))
+    if not newdev.DiInstallDriverW(None, str(inf), 0, ctypes.byref(reboot)):
+        # Reported verbatim so the parent can show the actual Win32 error.
+        return ctypes.get_last_error() or EXIT_BAD_ARGS
     return EXIT_OK
 
 
 def elevated_main(argv: list[str]) -> int:
-    from rk_flash_tool.logger import setup_logging
-
-    setup_logging()
     if len(argv) < 2:
-        logger.error("Missing INF path argument")
         return EXIT_BAD_ARGS
     try:
         return run_elevated_install(argv[1])
     except Exception:  # noqa: BLE001
-        logger.exception("Unexpected failure during driver installation")
-        return EXIT_INSTALL_FAILED
+        return EXIT_BAD_ARGS

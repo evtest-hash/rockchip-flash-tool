@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 import os
 import platform
 import re
@@ -11,8 +10,6 @@ import errno
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
-
-logger = logging.getLogger("rk_flash_tool.upgrade_tool")
 
 _PID_TO_CHIP: dict[int, str] = {
     0x350A: "RK3568",
@@ -127,7 +124,7 @@ class UpgradeTool:
             return
         try:
             cfg.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
-            logger.info("Adjusted config.ini: disable stdout_buffer_off for streaming output.")
+            return
         except Exception:  # noqa: BLE001
             return
 
@@ -172,14 +169,10 @@ class UpgradeTool:
             conpty_result = self._run_windows_conpty(cmd, timeout, progress_callback, normalize_line)
             if conpty_result is not None and conpty_result.returncode == 0:
                 return conpty_result
-            if conpty_result is not None:
-                logger.warning("ConPTY execution failed (rc=%s), falling back.", conpty_result.returncode)
 
             ps_result = self._run_windows_file_relay(cmd, timeout, progress_callback, normalize_line)
             if ps_result is not None and ps_result.returncode == 0:
                 return ps_result
-            if ps_result is not None:
-                logger.warning("PowerShell relay execution failed (rc=%s), falling back.", ps_result.returncode)
 
             proc = subprocess.Popen(
                 cmd,
@@ -308,14 +301,12 @@ class UpgradeTool:
         try:
             from winpty import PtyProcess  # type: ignore[import-not-found]
         except Exception as e:  # noqa: BLE001
-            logger.info("winpty unavailable, fallback from ConPTY: %s", e)
             return None
 
         cmdline = subprocess.list2cmdline(cmd)
         try:
             proc = PtyProcess.spawn(cmdline, cwd=str(self._cwd))
         except Exception as e:  # noqa: BLE001
-            logger.warning("ConPTY spawn failed, fallback to relay/direct mode: %s", e)
             return None
 
         start = time.time()
@@ -407,7 +398,6 @@ class UpgradeTool:
                 **no_console,
             )
         except Exception as e:  # noqa: BLE001
-            logger.warning("PowerShell relay unavailable, fallback to direct mode: %s", e)
             return None
 
         start = time.time()
