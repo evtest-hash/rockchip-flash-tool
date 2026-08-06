@@ -1,287 +1,28 @@
-name: Test Linux AppImage Compatibility
+name: Verify Published Linux AppImage
+
+# Day-to-day verification of the AppImage this repo builds lives in
+# build-release.yml (build-linux -> smoke-linux -> gate). This workflow is only
+# for pointing the same compatibility checks at an already published release
+# asset, which build-release.yml cannot reach.
 
 on:
-  pull_request:
   workflow_dispatch:
     inputs:
+      release_asset_url:
+        description: "Direct download URL for a published Linux AppImage asset"
+        type: string
+        required: true
       include_arch:
-        description: "Include Arch Linux smoke test"
+        description: "Include the Arch Linux leg"
         type: boolean
         required: false
         default: false
-      artifact_source:
-        description: "Use the AppImage built in this workflow or download an existing release asset"
-        type: choice
-        required: false
-        default: current_run
-        options:
-          - current_run
-          - release_asset_url
-      release_asset_url:
-        description: "Direct download URL for an existing Linux AppImage release asset"
-        type: string
-        required: false
 
 jobs:
-  build-linux-appimage:
-    name: Build Linux AppImage
-    if: ${{ github.event_name == 'pull_request' || github.event.inputs.artifact_source != 'release_asset_url' }}
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Cache linuxdeploy
-        uses: actions/cache@v4
-        with:
-          path: .cache
-          key: linuxdeploy-${{ runner.os }}-x86_64
-
-      - name: Install Linux runtime deps for bundling
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libegl1 \
-            libfuse2 \
-            libgbm1 \
-            libopengl0 \
-            patchelf \
-            libxkbcommon-x11-0 \
-            libxcb-cursor0 \
-            libxcb-xkb1 \
-            libxcb-util1 \
-            libxcb-image0 \
-            libxcb-icccm4 \
-            libxcb-keysyms1 \
-            libxcb-render-util0 \
-            libxcb-shape0
-
-      - name: Build Linux package
-        run: bash scripts/package_linux_pyqt.sh
-
-      - name: Upload AppImage artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-appimage
-          path: dist/Rockchip-Flash-Tool-linux-x86_64.AppImage
-          if-no-files-found: error
-
-  compat-current-run:
-    name: Compat ${{ matrix.label }}
-    if: ${{ github.event_name == 'pull_request' || github.event.inputs.artifact_source != 'release_asset_url' }}
-    needs: build-linux-appimage
-    runs-on: ubuntu-latest
-    continue-on-error: ${{ matrix.allow_failure }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - id: ubuntu2204
-            label: Ubuntu 22.04
-            image: ubuntu:22.04
-            install: |
-              apt-get update
-              DEBIAN_FRONTEND=noninteractive apt-get install -y \
-                file \
-                fuse \
-                libfuse2 \
-                libegl1 \
-                libgbm1 \
-                libopengl0 \
-                libxkbcommon-x11-0 \
-                libxcb-cursor0 \
-                libxcb-xkb1 \
-                libxcb-util1 \
-                libxcb-image0 \
-                libxcb-icccm4 \
-                libxcb-keysyms1 \
-                libxcb-render-util0 \
-                libxcb-shape0 \
-                xauth \
-                xvfb
-            allow_failure: false
-          - id: ubuntu2404
-            label: Ubuntu 24.04
-            image: ubuntu:24.04
-            install: |
-              apt-get update
-              DEBIAN_FRONTEND=noninteractive apt-get install -y \
-                file \
-                fuse3 \
-                libfuse2t64 \
-                libegl1 \
-                libgbm1 \
-                libopengl0 \
-                libxkbcommon-x11-0 \
-                libxcb-cursor0 \
-                libxcb-xkb1 \
-                libxcb-util1 \
-                libxcb-image0 \
-                libxcb-icccm4 \
-                libxcb-keysyms1 \
-                libxcb-render-util0 \
-                libxcb-shape0 \
-                xauth \
-                xvfb
-            allow_failure: false
-          - id: debian12
-            label: Debian 12
-            image: debian:12
-            install: |
-              apt-get update
-              DEBIAN_FRONTEND=noninteractive apt-get install -y \
-                file \
-                fuse3 \
-                libfuse2 \
-                libegl1 \
-                libgbm1 \
-                libopengl0 \
-                libxkbcommon-x11-0 \
-                libxcb-cursor0 \
-                libxcb-xkb1 \
-                libxcb-util1 \
-                libxcb-image0 \
-                libxcb-icccm4 \
-                libxcb-keysyms1 \
-                libxcb-render-util0 \
-                libxcb-shape0 \
-                xauth \
-                xvfb
-            allow_failure: false
-          - id: fedora40
-            label: Fedora 40
-            image: fedora:40
-            install: |
-              dnf install -y \
-                file \
-                findutils \
-                fuse \
-                fuse-libs \
-                mesa-libEGL \
-                mesa-libgbm \
-                mesa-libGL \
-                libxkbcommon-x11 \
-                xcb-util-cursor \
-                xcb-util-image \
-                xcb-util-keysyms \
-                xcb-util-renderutil \
-                xcb-util-wm \
-                xauth \
-                xorg-x11-server-Xvfb
-            allow_failure: false
-          - id: fedora41
-            label: Fedora 41
-            image: fedora:41
-            install: |
-              dnf install -y \
-                file \
-                findutils \
-                fuse \
-                fuse-libs \
-                mesa-libEGL \
-                mesa-libgbm \
-                mesa-libGL \
-                libxkbcommon-x11 \
-                xcb-util-cursor \
-                xcb-util-image \
-                xcb-util-keysyms \
-                xcb-util-renderutil \
-                xcb-util-wm \
-                xauth \
-                xorg-x11-server-Xvfb
-            allow_failure: true
-          - id: archlinux
-            label: Arch Linux
-            image: archlinux:latest
-            install: |
-              pacman -Syu --noconfirm \
-                file \
-                findutils \
-                fuse2 \
-                mesa \
-                libxkbcommon-x11 \
-                xcb-util-cursor \
-                xcb-util-image \
-                xcb-util-keysyms \
-                xcb-util-renderutil \
-                xcb-util-wm \
-                xorg-xauth \
-                xorg-server-xvfb
-            allow_failure: true
-            optional: true
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Download AppImage artifact
-        if: ${{ !matrix.optional || github.event_name != 'workflow_dispatch' || github.event.inputs.include_arch == 'true' }}
-        uses: actions/download-artifact@v4
-        with:
-          name: linux-appimage
-          path: artifacts
-
-      - name: Run compatibility checks in container
-        if: ${{ !matrix.optional || github.event_name != 'workflow_dispatch' || github.event.inputs.include_arch == 'true' }}
-        run: |
-          set -euo pipefail
-          mkdir -p compat-logs/${{ matrix.id }}
-          chmod +x scripts/check_appimage_compat.sh
-          docker run --rm \
-            --device /dev/fuse \
-            --cap-add SYS_ADMIN \
-            --security-opt apparmor:unconfined \
-            -v "${GITHUB_WORKSPACE}:/workspace" \
-            -w /workspace \
-            "${{ matrix.image }}" \
-            bash -lc '
-              set -euo pipefail
-              '"${{ matrix.install }}"'
-              chmod +x scripts/check_appimage_compat.sh
-              LOG_DIR=/workspace/compat-logs/${{ matrix.id }} \
-              RK_FLASH_TOOL_AUTO_EXIT_MS=2500 \
-              RUN_TIMEOUT_SECONDS=20 \
-              scripts/check_appimage_compat.sh /workspace/artifacts/Rockchip-Flash-Tool-linux-x86_64.AppImage
-            '
-
-      - name: Upload compatibility logs
-        if: ${{ always() && (!matrix.optional || github.event_name != 'workflow_dispatch' || github.event.inputs.include_arch == 'true') }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-compat-${{ matrix.id }}
-          path: compat-logs/${{ matrix.id }}
-          if-no-files-found: warn
-
-      - name: Append job summary
-        if: ${{ always() && (!matrix.optional || github.event_name != 'workflow_dispatch' || github.event.inputs.include_arch == 'true') }}
-        run: |
-          set -euo pipefail
-          summary="compat-logs/${{ matrix.id }}/summary.md"
-          reason_file="compat-logs/${{ matrix.id }}/failure_reason.txt"
-          {
-            echo "# ${{ matrix.label }}"
-            echo
-            if [[ -f "$summary" ]]; then
-              cat "$summary"
-            else
-              echo "- Result: FAIL"
-              if [[ -f "$reason_file" ]]; then
-                echo "- Reason: $(cat "$reason_file")"
-              else
-                echo "- Reason: compatibility check did not produce a summary"
-              fi
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
-
   compat-release-asset:
-    name: Compat ${{ matrix.label }} (release asset)
-    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.artifact_source == 'release_asset_url' }}
+    name: Verify ${{ matrix.label }}
     runs-on: ubuntu-latest
-    continue-on-error: ${{ matrix.allow_failure }}
+    continue-on-error: ${{ matrix.advisory }}
     strategy:
       fail-fast: false
       matrix:
@@ -289,161 +30,89 @@ jobs:
           - id: ubuntu2204
             label: Ubuntu 22.04
             image: ubuntu:22.04
+            advisory: false
+            optional: false
             install: |
               apt-get update
               DEBIAN_FRONTEND=noninteractive apt-get install -y \
-                curl \
-                file \
-                fuse \
-                libfuse2 \
-                libegl1 \
-                libgbm1 \
-                libopengl0 \
-                libxkbcommon-x11-0 \
-                libxcb-cursor0 \
-                libxcb-xkb1 \
-                libxcb-util1 \
-                libxcb-image0 \
-                libxcb-icccm4 \
-                libxcb-keysyms1 \
-                libxcb-render-util0 \
-                libxcb-shape0 \
-                xauth \
-                xvfb
-            allow_failure: false
+                curl file fuse libfuse2 libegl1 libgbm1 libopengl0 \
+                libxkbcommon-x11-0 libxcb-cursor0 libxcb-xkb1 libxcb-util1 \
+                libxcb-image0 libxcb-icccm4 libxcb-keysyms1 \
+                libxcb-render-util0 libxcb-shape0 xauth xvfb
           - id: ubuntu2404
             label: Ubuntu 24.04
             image: ubuntu:24.04
+            advisory: false
+            optional: false
             install: |
               apt-get update
               DEBIAN_FRONTEND=noninteractive apt-get install -y \
-                curl \
-                file \
-                fuse3 \
-                libfuse2t64 \
-                libegl1 \
-                libgbm1 \
-                libopengl0 \
-                libxkbcommon-x11-0 \
-                libxcb-cursor0 \
-                libxcb-xkb1 \
-                libxcb-util1 \
-                libxcb-image0 \
-                libxcb-icccm4 \
-                libxcb-keysyms1 \
-                libxcb-render-util0 \
-                libxcb-shape0 \
-                xauth \
-                xvfb
-            allow_failure: false
+                curl file fuse3 libfuse2t64 libegl1 libgbm1 libopengl0 \
+                libxkbcommon-x11-0 libxcb-cursor0 libxcb-xkb1 libxcb-util1 \
+                libxcb-image0 libxcb-icccm4 libxcb-keysyms1 \
+                libxcb-render-util0 libxcb-shape0 xauth xvfb
           - id: debian12
             label: Debian 12
             image: debian:12
+            advisory: false
+            optional: false
             install: |
               apt-get update
               DEBIAN_FRONTEND=noninteractive apt-get install -y \
-                curl \
-                file \
-                fuse3 \
-                libfuse2 \
-                libegl1 \
-                libgbm1 \
-                libopengl0 \
-                libxkbcommon-x11-0 \
-                libxcb-cursor0 \
-                libxcb-xkb1 \
-                libxcb-util1 \
-                libxcb-image0 \
-                libxcb-icccm4 \
-                libxcb-keysyms1 \
-                libxcb-render-util0 \
-                libxcb-shape0 \
-                xauth \
-                xvfb
-            allow_failure: false
+                curl file fuse3 libfuse2 libegl1 libgbm1 libopengl0 \
+                libxkbcommon-x11-0 libxcb-cursor0 libxcb-xkb1 libxcb-util1 \
+                libxcb-image0 libxcb-icccm4 libxcb-keysyms1 \
+                libxcb-render-util0 libxcb-shape0 xauth xvfb
           - id: fedora40
             label: Fedora 40
             image: fedora:40
+            advisory: false
+            optional: false
             install: |
               dnf install -y \
-                curl \
-                file \
-                findutils \
-                fuse \
-                fuse-libs \
-                mesa-libEGL \
-                mesa-libgbm \
-                mesa-libGL \
-                libxkbcommon-x11 \
-                xcb-util-cursor \
-                xcb-util-image \
-                xcb-util-keysyms \
-                xcb-util-renderutil \
-                xcb-util-wm \
-                xauth \
+                curl file findutils fuse fuse-libs mesa-libEGL mesa-libgbm \
+                mesa-libGL libxkbcommon-x11 xcb-util-cursor xcb-util-image \
+                xcb-util-keysyms xcb-util-renderutil xcb-util-wm xauth \
                 xorg-x11-server-Xvfb
-            allow_failure: false
           - id: fedora41
             label: Fedora 41
             image: fedora:41
+            advisory: true
+            optional: false
             install: |
               dnf install -y \
-                curl \
-                file \
-                findutils \
-                fuse \
-                fuse-libs \
-                mesa-libEGL \
-                mesa-libgbm \
-                mesa-libGL \
-                libxkbcommon-x11 \
-                xcb-util-cursor \
-                xcb-util-image \
-                xcb-util-keysyms \
-                xcb-util-renderutil \
-                xcb-util-wm \
-                xauth \
+                curl file findutils fuse fuse-libs mesa-libEGL mesa-libgbm \
+                mesa-libGL libxkbcommon-x11 xcb-util-cursor xcb-util-image \
+                xcb-util-keysyms xcb-util-renderutil xcb-util-wm xauth \
                 xorg-x11-server-Xvfb
-            allow_failure: true
           - id: archlinux
             label: Arch Linux
             image: archlinux:latest
+            advisory: true
+            optional: true
             install: |
               pacman -Syu --noconfirm \
-                curl \
-                file \
-                findutils \
-                fuse2 \
-                mesa \
-                libxkbcommon-x11 \
-                xcb-util-cursor \
-                xcb-util-image \
-                xcb-util-keysyms \
-                xcb-util-renderutil \
-                xcb-util-wm \
-                xorg-xauth \
-                xorg-server-xvfb
-            allow_failure: true
-            optional: true
+                curl file findutils fuse2 mesa libxkbcommon-x11 \
+                xcb-util-cursor xcb-util-image xcb-util-keysyms \
+                xcb-util-renderutil xcb-util-wm xorg-xauth xorg-server-xvfb
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Validate release asset URL
-        if: ${{ !matrix.optional || github.event.inputs.include_arch == 'true' }}
-        run: |
-          test -n "${{ github.event.inputs.release_asset_url }}"
 
       - name: Download release AppImage
-        if: ${{ !matrix.optional || github.event.inputs.include_arch == 'true' }}
+        if: ${{ !matrix.optional || inputs.include_arch }}
+        env:
+          ASSET_URL: ${{ inputs.release_asset_url }}
         run: |
           set -euo pipefail
           mkdir -p artifacts
-          curl -L "${{ github.event.inputs.release_asset_url }}" -o artifacts/Rockchip-Flash-Tool-linux-x86_64.AppImage
+          curl -fL "$ASSET_URL" -o artifacts/Rockchip-Flash-Tool-linux-x86_64.AppImage
           chmod +x artifacts/Rockchip-Flash-Tool-linux-x86_64.AppImage
 
       - name: Run compatibility checks in container
-        if: ${{ !matrix.optional || github.event.inputs.include_arch == 'true' }}
+        if: ${{ !matrix.optional || inputs.include_arch }}
+        env:
+          DISTRO_INSTALL: ${{ matrix.install }}
         run: |
           set -euo pipefail
           mkdir -p compat-logs/${{ matrix.id }}
@@ -452,29 +121,30 @@ jobs:
             --device /dev/fuse \
             --cap-add SYS_ADMIN \
             --security-opt apparmor:unconfined \
+            -e DISTRO_INSTALL \
             -v "${GITHUB_WORKSPACE}:/workspace" \
             -w /workspace \
             "${{ matrix.image }}" \
             bash -lc '
               set -euo pipefail
-              '"${{ matrix.install }}"'
+              eval "$DISTRO_INSTALL"
               chmod +x scripts/check_appimage_compat.sh
-              LOG_DIR=/workspace/compat-logs/${{ matrix.id }} \
+              LOG_DIR=/workspace/compat-logs/'"${{ matrix.id }}"' \
               RK_FLASH_TOOL_AUTO_EXIT_MS=2500 \
               RUN_TIMEOUT_SECONDS=20 \
               scripts/check_appimage_compat.sh /workspace/artifacts/Rockchip-Flash-Tool-linux-x86_64.AppImage
             '
 
       - name: Upload compatibility logs
-        if: ${{ always() && (!matrix.optional || github.event.inputs.include_arch == 'true') }}
+        if: ${{ always() && (!matrix.optional || inputs.include_arch) }}
         uses: actions/upload-artifact@v4
         with:
-          name: linux-compat-${{ matrix.id }}-release
+          name: compat-${{ matrix.id }}-logs
           path: compat-logs/${{ matrix.id }}
           if-no-files-found: warn
 
       - name: Append job summary
-        if: ${{ always() && (!matrix.optional || github.event.inputs.include_arch == 'true') }}
+        if: ${{ always() && (!matrix.optional || inputs.include_arch) }}
         run: |
           set -euo pipefail
           summary="compat-logs/${{ matrix.id }}/summary.md"

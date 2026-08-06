@@ -13,8 +13,6 @@ jobs:
   build-macos:
     name: Build macOS universal DMG
     runs-on: macos-latest
-    permissions:
-      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -30,18 +28,9 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      - name: Upload macOS release asset
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: dist/Rockchip-Flash-Tool-macOS-universal.dmg
-          generate_release_notes: true
-
   build-windows:
     name: Build Windows EXE
     runs-on: windows-2022
-    permissions:
-      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -63,18 +52,9 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      - name: Upload Windows release asset
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: dist/Rockchip-Flash-Tool-windows-x64.zip
-          generate_release_notes: false
-
   build-linux:
     name: Build Linux AppImage
     runs-on: ubuntu-22.04
-    permissions:
-      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -112,12 +92,13 @@ jobs:
       - name: Build Linux package
         run: bash scripts/package_linux_pyqt.sh
 
-      - name: Upload Linux release asset
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
+      - name: Upload Linux AppImage artifact
+        uses: actions/upload-artifact@v4
         with:
-          files: dist/Rockchip-Flash-Tool-linux-x86_64.AppImage
-          generate_release_notes: false
+          name: linux-appimage
+          path: dist/Rockchip-Flash-Tool-linux-x86_64.AppImage
+          if-no-files-found: error
+          retention-days: 7
 
   # Smoke tests: prove the artifact is well formed, starts on the target OS and
   # carries a working upgrade_tool. Flashing itself needs a USB device and
@@ -126,14 +107,19 @@ jobs:
     name: Smoke ${{ matrix.label }}
     needs: build-macos
     runs-on: ${{ matrix.runner }}
+    # Intel runners are scarce and can sit queued for a long time. Keep the leg
+    # for signal, but do not let it stall a release.
+    continue-on-error: ${{ matrix.advisory }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - runner: macos-13
-            label: macOS 13 Intel
           - runner: macos-15
             label: macOS 15 Apple Silicon
+            advisory: false
+          - runner: macos-13
+            label: macOS 13 Intel
+            advisory: true
     steps:
       - name: Download macOS DMG artifact
         uses: actions/download-artifact@v4
@@ -211,6 +197,17 @@ jobs:
           # LD with no device attached prints "connected(0)" and exits 0.
           "$tool" LD
 
+      - name: Probe the x86_64 slice under Rosetta
+        # Non-blocking: tells us whether the arm64 runner can exercise the other
+        # half of the universal binary, which would let us drop the Intel leg.
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          APP="$RUNNER_TEMP/Rockchip Flash Tool.app"
+          tool="$(find "$APP" -type f -path '*/tools/darwin/upgrade_tool' -print -quit)"
+          arch -x86_64 "$tool" LD
+          echo "rosetta probe exit: $?"
+
       - name: Upload launch log
         if: always()
         uses: actions/upload-artifact@v4
@@ -272,3 +269,208 @@ jobs:
             launch.out
             launch.err
           if-no-files-found: warn
+
+  smoke-linux:
+    name: Smoke ${{ matrix.label }}
+    needs: build-linux
+    runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.advisory }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: ubuntu2204
+            label: Ubuntu 22.04
+            image: ubuntu:22.04
+            advisory: false
+            install: |
+              apt-get update
+              DEBIAN_FRONTEND=noninteractive apt-get install -y \
+                file fuse libfuse2 libegl1 libgbm1 libopengl0 \
+                libxkbcommon-x11-0 libxcb-cursor0 libxcb-xkb1 libxcb-util1 \
+                libxcb-image0 libxcb-icccm4 libxcb-keysyms1 \
+                libxcb-render-util0 libxcb-shape0 xauth xvfb
+          - id: ubuntu2404
+            label: Ubuntu 24.04
+            image: ubuntu:24.04
+            advisory: false
+            install: |
+              apt-get update
+              DEBIAN_FRONTEND=noninteractive apt-get install -y \
+                file fuse3 libfuse2t64 libegl1 libgbm1 libopengl0 \
+                libxkbcommon-x11-0 libxcb-cursor0 libxcb-xkb1 libxcb-util1 \
+                libxcb-image0 libxcb-icccm4 libxcb-keysyms1 \
+                libxcb-render-util0 libxcb-shape0 xauth xvfb
+          - id: debian12
+            label: Debian 12
+            image: debian:12
+            advisory: false
+            install: |
+              apt-get update
+              DEBIAN_FRONTEND=noninteractive apt-get install -y \
+                file fuse3 libfuse2 libegl1 libgbm1 libopengl0 \
+                libxkbcommon-x11-0 libxcb-cursor0 libxcb-xkb1 libxcb-util1 \
+                libxcb-image0 libxcb-icccm4 libxcb-keysyms1 \
+                libxcb-render-util0 libxcb-shape0 xauth xvfb
+          - id: fedora40
+            label: Fedora 40
+            image: fedora:40
+            advisory: false
+            install: |
+              dnf install -y \
+                file findutils fuse fuse-libs mesa-libEGL mesa-libgbm mesa-libGL \
+                libxkbcommon-x11 xcb-util-cursor xcb-util-image xcb-util-keysyms \
+                xcb-util-renderutil xcb-util-wm xauth xorg-x11-server-Xvfb
+          - id: fedora41
+            label: Fedora 41
+            image: fedora:41
+            advisory: true
+            install: |
+              dnf install -y \
+                file findutils fuse fuse-libs mesa-libEGL mesa-libgbm mesa-libGL \
+                libxkbcommon-x11 xcb-util-cursor xcb-util-image xcb-util-keysyms \
+                xcb-util-renderutil xcb-util-wm xauth xorg-x11-server-Xvfb
+          - id: archlinux
+            label: Arch Linux
+            image: archlinux:latest
+            advisory: true
+            install: |
+              pacman -Syu --noconfirm \
+                file findutils fuse2 mesa libxkbcommon-x11 xcb-util-cursor \
+                xcb-util-image xcb-util-keysyms xcb-util-renderutil xcb-util-wm \
+                xorg-xauth xorg-server-xvfb
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Linux AppImage artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-appimage
+          path: artifacts
+
+      - name: Run compatibility checks in container
+        env:
+          DISTRO_INSTALL: ${{ matrix.install }}
+        run: |
+          set -euo pipefail
+          mkdir -p compat-logs/${{ matrix.id }}
+          chmod +x scripts/check_appimage_compat.sh
+          docker run --rm \
+            --device /dev/fuse \
+            --cap-add SYS_ADMIN \
+            --security-opt apparmor:unconfined \
+            -e DISTRO_INSTALL \
+            -v "${GITHUB_WORKSPACE}:/workspace" \
+            -w /workspace \
+            "${{ matrix.image }}" \
+            bash -lc '
+              set -euo pipefail
+              eval "$DISTRO_INSTALL"
+              chmod +x scripts/check_appimage_compat.sh
+              LOG_DIR=/workspace/compat-logs/'"${{ matrix.id }}"' \
+              RK_FLASH_TOOL_AUTO_EXIT_MS=2500 \
+              RUN_TIMEOUT_SECONDS=20 \
+              scripts/check_appimage_compat.sh /workspace/artifacts/Rockchip-Flash-Tool-linux-x86_64.AppImage
+            '
+
+      - name: Upload compatibility logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-linux-${{ matrix.id }}-logs
+          path: compat-logs/${{ matrix.id }}
+          if-no-files-found: warn
+
+      - name: Append job summary
+        if: always()
+        run: |
+          set -euo pipefail
+          summary="compat-logs/${{ matrix.id }}/summary.md"
+          reason_file="compat-logs/${{ matrix.id }}/failure_reason.txt"
+          {
+            echo "# ${{ matrix.label }}"
+            echo
+            if [[ -f "$summary" ]]; then
+              cat "$summary"
+            else
+              echo "- Result: FAIL"
+              if [[ -f "$reason_file" ]]; then
+                echo "- Reason: $(cat "$reason_file")"
+              else
+                echo "- Reason: compatibility check did not produce a summary"
+              fi
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Single aggregate verdict for every run, release or not. This is the status
+  # check to require on the branch, and what publishing hangs off.
+  gate:
+    name: Artifacts verified
+    if: always()
+    needs: [smoke-macos, smoke-windows, smoke-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check smoke results
+        env:
+          MACOS: ${{ needs.smoke-macos.result }}
+          WINDOWS: ${{ needs.smoke-windows.result }}
+          LINUX: ${{ needs.smoke-linux.result }}
+        run: |
+          set -euo pipefail
+          printf 'macos:   %s\nwindows: %s\nlinux:   %s\n' "$MACOS" "$WINDOWS" "$LINUX"
+          {
+            echo "# Artifact verification"
+            echo
+            echo "| Platform | Result |"
+            echo "|---|---|"
+            echo "| macOS | $MACOS |"
+            echo "| Windows | $WINDOWS |"
+            echo "| Linux | $LINUX |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          for r in "$MACOS" "$WINDOWS" "$LINUX"; do
+            if [[ "$r" != "success" ]]; then
+              echo "::error::artifact verification did not pass"
+              exit 1
+            fi
+          done
+          echo "all platforms verified"
+
+  publish:
+    name: Publish release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: gate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download macOS DMG
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-dmg
+          path: artifacts
+
+      - name: Download Windows zip
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-zip
+          path: artifacts
+
+      - name: Download Linux AppImage
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-appimage
+          path: artifacts
+
+      - name: Show what will be published
+        run: ls -la artifacts
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/Rockchip-Flash-Tool-macOS-universal.dmg
+            artifacts/Rockchip-Flash-Tool-windows-x64.zip
+            artifacts/Rockchip-Flash-Tool-linux-x86_64.AppImage
+          fail_on_unmatched_files: true
+          generate_release_notes: true
