@@ -78,7 +78,7 @@ def _trim_border(img: QImage, threshold: int = 18, ratio: float = 0.985) -> QIma
     return img.copy(left, top, right - left + 1, bottom - top + 1)
 
 
-def _compose_macos_icon(src: QImage, size: int = 1024, inset_ratio: float = 0.86, corner_ratio: float = 0.225) -> QImage:
+def _compose_macos_icon(src: QImage, size: int = 1024, inset_ratio: float = 824 / 1024, corner_ratio: float = 0.225) -> QImage:
     canvas = QImage(size, size, QImage.Format_ARGB32)
     canvas.fill(Qt.GlobalColor.transparent)
 
@@ -106,7 +106,8 @@ def main() -> int:
     parser.add_argument("source", type=Path, help="Input PNG file")
     parser.add_argument("output", type=Path, help="Output PNG file")
     parser.add_argument("--size", type=int, default=1024, help="Output size, default: 1024")
-    parser.add_argument("--inset", type=float, default=0.86, help="Content inset ratio, default: 0.86")
+    parser.add_argument("--inset", type=float, default=824 / 1024,
+                        help="Content inset ratio; Apple's icon grid puts the shape at 824/1024")
     parser.add_argument("--corner", type=float, default=0.225, help="Corner radius ratio, default: 0.225")
     args = parser.parse_args()
 
