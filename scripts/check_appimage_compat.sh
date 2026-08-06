@@ -12,6 +12,10 @@ if [[ ! -f "$APPIMAGE" ]]; then
   exit 2
 fi
 
+# Resolve before anything cd's away: this script is invoked by relative path.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+EXCLUDELIST="${EXCLUDELIST:-$SCRIPT_DIR/appimage-excludelist.txt}"
+
 TIMEOUT_BIN="${TIMEOUT_BIN:-timeout}"
 AUTO_EXIT_MS="${RK_FLASH_TOOL_AUTO_EXIT_MS:-2500}"
 RUN_TIMEOUT_SECONDS="${RUN_TIMEOUT_SECONDS:-20}"
@@ -169,7 +173,9 @@ fi
 # unresolved dependency is a packaging defect only when the library is NOT on
 # that list. ldd also has to see the same search path AppRun exports, or the
 # bundle's own Qt libraries would look missing.
-EXCLUDELIST="${EXCLUDELIST:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/appimage-excludelist.txt}"
+if [[ ! -f "$EXCLUDELIST" ]]; then
+  fail "glibc/runtime mismatch" "excludelist not found at $EXCLUDELIST" "$EXTRACT_LOG"
+fi
 app_base="$(cd "$(dirname "$main_bin")" && pwd)"
 bundle_ld_path="$PWD/squashfs-root/usr/lib:$app_base:$app_base/_internal:$app_base/_internal/PySide6/Qt/lib"
 
