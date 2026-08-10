@@ -40,7 +40,7 @@ if ($needRebuildIcon) {
     --add-data "$IconIco;assets" `
     --add-data "vendor/upgrade_tool/windows;vendor/upgrade_tool/windows" `
     --add-data "vendor/rkbin;vendor/rkbin" `
-    rk_flash_tool/__main__.py
+    rockchip_flash_tool/__main__.py
 
 $zipPath = Join-Path "dist" $ZipName
 if (Test-Path $zipPath) {

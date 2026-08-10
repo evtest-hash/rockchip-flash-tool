@@ -21,16 +21,16 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from rk_flash_tool import __app_name__, __version__
-from rk_flash_tool.flasher import FlashError, Flasher
-from rk_flash_tool.image_format import detect_image_format
-from rk_flash_tool.styles import STYLESHEET
-from rk_flash_tool.upgrade_tool import DriverInstallError, ToolNotFoundError
+from rockchip_flash_tool import __app_name__, __version__
+from rockchip_flash_tool.flasher import FlashError, Flasher
+from rockchip_flash_tool.image_format import detect_image_format
+from rockchip_flash_tool.styles import STYLESHEET
+from rockchip_flash_tool.upgrade_tool import DriverInstallError, ToolNotFoundError
 
 # The artifact smoke tests launch the app with an auto-quit timer. A modal
 # dialog would run its own event loop and ignore QApplication.quit(), hanging
 # the run, so no dialog may open in this mode.
-SMOKE_LAUNCH = bool(os.getenv("RK_FLASH_TOOL_AUTO_EXIT_MS", "").strip())
+SMOKE_LAUNCH = bool(os.getenv("ROCKCHIP_FLASH_TOOL_AUTO_EXIT_MS", "").strip())
 
 
 class FlashWorker(QThread):

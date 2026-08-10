@@ -20,7 +20,7 @@
 ### Added
 
 - `pyproject.toml` with project metadata; the version is read from
-  `rk_flash_tool.__version__` and the dependencies from `requirements.txt`, so
+  `rockchip_flash_tool.__version__` and the dependencies from `requirements.txt`, so
   neither is duplicated.
 - `THIRD_PARTY.md` recording the origin, version and SHA-256 of every vendored
   Rockchip binary.

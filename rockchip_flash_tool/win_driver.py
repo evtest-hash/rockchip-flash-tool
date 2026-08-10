@@ -7,7 +7,7 @@ import sys
 from ctypes import wintypes
 from pathlib import Path
 
-from rk_flash_tool import resources
+from rockchip_flash_tool import resources
 
 ELEVATED_FLAG = "--install-rockusb-driver"
 
@@ -123,7 +123,9 @@ def install_elevated(timeout_ms: int = 600_000) -> None:
     if getattr(sys, "frozen", False):
         params = f'{ELEVATED_FLAG} "{inf}"'
     else:
-        params = f'-m rk_flash_tool {ELEVATED_FLAG} "{inf}"'
+        # Derived, not spelled out: a hardcoded module name here is invisible to
+        # renames and this path only runs on a Windows box without the driver.
+        params = f'-m {__package__} {ELEVATED_FLAG} "{inf}"'
 
     sei = SHELLEXECUTEINFOW()
     sei.cbSize = ctypes.sizeof(sei)

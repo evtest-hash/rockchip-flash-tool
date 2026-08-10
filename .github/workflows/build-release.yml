@@ -161,7 +161,7 @@ jobs:
         run: |
           set -euo pipefail
           APP="$RUNNER_TEMP/Rockchip Flash Tool.app"
-          export RK_FLASH_TOOL_AUTO_EXIT_MS=2500 QT_DEBUG_PLUGINS=1
+          export ROCKCHIP_FLASH_TOOL_AUTO_EXIT_MS=2500 QT_DEBUG_PLUGINS=1
           "$APP/Contents/MacOS/Rockchip Flash Tool" >launch.log 2>&1 &
           pid=$!
           for _ in $(seq 1 40); do
@@ -218,7 +218,7 @@ jobs:
         run: |
           set -euo pipefail
           APP="$RUNNER_TEMP/Rockchip Flash Tool.app"
-          export RK_FLASH_TOOL_AUTO_EXIT_MS=2500
+          export ROCKCHIP_FLASH_TOOL_AUTO_EXIT_MS=2500
           arch -x86_64 "$APP/Contents/MacOS/Rockchip Flash Tool" >rosetta-launch.log 2>&1 &
           pid=$!
           for _ in $(seq 1 60); do
@@ -272,7 +272,7 @@ jobs:
       - name: Launch app
         shell: pwsh
         run: |
-          $env:RK_FLASH_TOOL_AUTO_EXIT_MS = "2500"
+          $env:ROCKCHIP_FLASH_TOOL_AUTO_EXIT_MS = "2500"
           $p = Start-Process -FilePath "app\Rockchip Flash Tool.exe" -PassThru -NoNewWindow `
                  -RedirectStandardOutput launch.out -RedirectStandardError launch.err
           if (-not $p.WaitForExit(60000)) {
@@ -403,7 +403,7 @@ jobs:
               eval "$DISTRO_INSTALL"
               chmod +x packaging/linux/check_compat.sh
               LOG_DIR=/workspace/compat-logs/'"${{ matrix.id }}"' \
-              RK_FLASH_TOOL_AUTO_EXIT_MS=2500 \
+              ROCKCHIP_FLASH_TOOL_AUTO_EXIT_MS=2500 \
               RUN_TIMEOUT_SECONDS=20 \
               packaging/linux/check_compat.sh /workspace/artifacts/Rockchip-Flash-Tool-linux-x86_64.AppImage
             '

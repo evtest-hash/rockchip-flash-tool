@@ -17,7 +17,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 EXCLUDELIST="${EXCLUDELIST:-$SCRIPT_DIR/appimage-excludelist.txt}"
 
 TIMEOUT_BIN="${TIMEOUT_BIN:-timeout}"
-AUTO_EXIT_MS="${RK_FLASH_TOOL_AUTO_EXIT_MS:-2500}"
+AUTO_EXIT_MS="${ROCKCHIP_FLASH_TOOL_AUTO_EXIT_MS:-2500}"
 RUN_TIMEOUT_SECONDS="${RUN_TIMEOUT_SECONDS:-20}"
 LOG_DIR="${LOG_DIR:-$(pwd)/appimage-compat-logs}"
 mkdir -p "$LOG_DIR"
@@ -99,7 +99,7 @@ run_launch_check() {
   shift 2
 
   set +e
-  env RK_FLASH_TOOL_AUTO_EXIT_MS="$AUTO_EXIT_MS" QT_DEBUG_PLUGINS=1 "$@" >"$log_file" 2>&1
+  env ROCKCHIP_FLASH_TOOL_AUTO_EXIT_MS="$AUTO_EXIT_MS" QT_DEBUG_PLUGINS=1 "$@" >"$log_file" 2>&1
   local rc=$?
   set -e
 

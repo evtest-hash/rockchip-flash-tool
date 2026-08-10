@@ -4,10 +4,10 @@ import time
 from pathlib import Path
 from typing import Callable
 
-from rk_flash_tool import resources
-from rk_flash_tool.chip_db import find_loader
-from rk_flash_tool.image_format import ImageFormat, ImageInfo, detect_image_format
-from rk_flash_tool.upgrade_tool import DeviceInfo, DeviceNotFoundError, UpgradeTool, UpgradeToolError
+from rockchip_flash_tool import resources
+from rockchip_flash_tool.chip_db import find_loader
+from rockchip_flash_tool.image_format import ImageFormat, ImageInfo, detect_image_format
+from rockchip_flash_tool.upgrade_tool import DeviceInfo, DeviceNotFoundError, UpgradeTool, UpgradeToolError
 
 ProgressCallback = Callable[[str], None]
 

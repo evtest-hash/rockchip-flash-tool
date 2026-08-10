@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from rk_flash_tool import resources
+from rockchip_flash_tool import resources
 
 _PID_TO_CHIP: dict[int, str] = {
     0x350A: "RK3568",
@@ -372,7 +372,7 @@ class UpgradeTool:
         def ps_quote(s: str) -> str:
             return "'" + s.replace("'", "''") + "'"
 
-        relay_path = Path(tempfile.gettempdir()) / f"rk_flash_tool_{int(time.time() * 1000)}.log"
+        relay_path = Path(tempfile.gettempdir()) / f"rockchip_flash_tool_{int(time.time() * 1000)}.log"
         relay_ps = (
             f"$out={ps_quote(str(relay_path))}; "
             "if (Test-Path $out) { Remove-Item -Force $out }; "
@@ -473,7 +473,7 @@ class UpgradeTool:
     def install_windows_driver(self) -> None:
         if os.name != "nt":
             return
-        from rk_flash_tool.win_driver import DriverPackageError, install_elevated
+        from rockchip_flash_tool.win_driver import DriverPackageError, install_elevated
 
         try:
             install_elevated()
