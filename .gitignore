@@ -7,6 +7,7 @@ __pycache__/
 
 build/
 dist/
+*.spec
 .build/
 .pytest_cache/
 .mypy_cache/
