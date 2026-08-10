@@ -1,6 +1,33 @@
 # Changelog
 
-## Unreleased
+## 1.1.0
+
+### Added
+
+- Firmware images can be dropped onto the window.
+- The file dialog reopens in the directory the last firmware came from.
+- The window follows the system light/dark setting, switching live.
+- `pyproject.toml` with project metadata; the version is read from
+  `rockchip_flash_tool.__version__` and the dependencies from `requirements.txt`.
+- `THIRD_PARTY.md` recording the origin and version of every vendored Rockchip
+  binary.
+
+### Changed
+
+- Colours are derived from the platform palette instead of being hard-coded, so
+  the window matches the title bar the system draws.
+- Buttons have hover, pressed and focus states.
+- Font sizes are in points rather than pixels, so text follows a system
+  font-size preference.
+- The status bar is taller, and its text is larger, in body colour, and aligned
+  with the panels above.
+- The startup status reads `Ready` instead of naming an internal tool.
+
+### Fixed
+
+- A status message given a timeout left the bar blank when it expired instead of
+  restoring the standing message.
+- Light-theme secondary text was below the WCAG AA contrast minimum.
 
 ### Removed
 
@@ -16,14 +43,6 @@
 - The Linux packaging script no longer guesses the AppImage output filename from
   six candidate locations, and no longer carries PyQt5 branches — this project
   ships PySide6.
-
-### Added
-
-- `pyproject.toml` with project metadata; the version is read from
-  `rockchip_flash_tool.__version__` and the dependencies from `requirements.txt`, so
-  neither is duplicated.
-- `THIRD_PARTY.md` recording the origin, version and SHA-256 of every vendored
-  Rockchip binary.
 
 ## 1.0.0
 

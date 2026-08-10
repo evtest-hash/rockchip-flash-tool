@@ -5,8 +5,8 @@ import traceback
 import platform
 from pathlib import Path
 
-from PySide6.QtCore import QThread, QTimer, Signal, Slot, Qt
-from PySide6.QtGui import QFont
+from PySide6.QtCore import QEvent, QSettings, QThread, QTimer, Signal, Slot, Qt
+from PySide6.QtGui import QDragEnterEvent, QDropEvent, QGuiApplication
 from PySide6.QtWidgets import (
     QFileDialog,
     QFrame,
@@ -24,13 +24,15 @@ from PySide6.QtWidgets import (
 from rockchip_flash_tool import __app_name__, __version__
 from rockchip_flash_tool.flasher import FlashError, Flasher
 from rockchip_flash_tool.image_format import detect_image_format
-from rockchip_flash_tool.styles import STYLESHEET
+from rockchip_flash_tool.styles import Theme, theme
 from rockchip_flash_tool.upgrade_tool import DriverInstallError, ToolNotFoundError
 
 # The artifact smoke tests launch the app with an auto-quit timer. A modal
 # dialog would run its own event loop and ignore QApplication.quit(), hanging
 # the run, so no dialog may open in this mode.
 SMOKE_LAUNCH = bool(os.getenv("ROCKCHIP_FLASH_TOOL_AUTO_EXIT_MS", "").strip())
+
+_LAST_DIR_KEY = "firmware/last_dir"
 
 
 class FlashWorker(QThread):
@@ -60,6 +62,12 @@ class MainWindow(QMainWindow):
         self._flasher: Flasher | None = None
         self._worker: FlashWorker | None = None
         self._tool_available = False
+        self._settings = QSettings(__app_name__, __app_name__)
+        # Kept so the dot can be repainted when the system flips light/dark.
+        self._device_connected = False
+        self._device_text = "No device connected"
+        self._status_idle = "Ready"
+        self._theme: Theme = self._current_theme()
 
         self._setup_ui()
         self._try_init_tool()
@@ -70,8 +78,12 @@ class MainWindow(QMainWindow):
 
     def _setup_ui(self) -> None:
         self.setWindowTitle(f"{__app_name__} v{__version__}")
-        self.setFixedSize(860, 360)
-        self.setStyleSheet(STYLESHEET)
+        # 371 = the old 360 plus the 11px the taller status bar takes, so the
+        # content area above it keeps its original height.
+        self.setFixedSize(860, 371)
+        self.setAcceptDrops(True)
+        self.setStyleSheet(self._theme.qss)
+        QGuiApplication.styleHints().colorSchemeChanged.connect(self._apply_theme)
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -86,14 +98,13 @@ class MainWindow(QMainWindow):
         dlayout.setContentsMargins(12, 10, 12, 10)
         dlayout.setSpacing(8)
         dtitle = QLabel("Device")
-        dtitle.setStyleSheet("color:#0b1320;font-size:14px;font-weight:800;background:#ffffff;")
+        dtitle.setProperty("class", "title")
         dlayout.addWidget(dtitle)
         drow = QHBoxLayout()
         self._lbl_device = QLabel("")
-        self._lbl_device.setStyleSheet("color:#0b1320;font-size:13px;font-weight:700;background:#ffffff;")
+        self._lbl_device.setProperty("class", "device")
         self._set_device_label(False, "No device connected")
         self._btn_refresh = QPushButton("Refresh")
-        self._btn_refresh.setProperty("class", "secondary")
         self._btn_refresh.clicked.connect(self._on_refresh)
         drow.addWidget(self._lbl_device, 1)
         drow.addWidget(self._btn_refresh)
@@ -107,20 +118,19 @@ class MainWindow(QMainWindow):
         flayout.setContentsMargins(12, 10, 12, 10)
         flayout.setSpacing(8)
         ftitle = QLabel("Firmware")
-        ftitle.setStyleSheet("color:#0b1320;font-size:14px;font-weight:800;background:#ffffff;")
+        ftitle.setProperty("class", "title")
         flayout.addWidget(ftitle)
         row = QHBoxLayout()
         self._edit_firmware = QLineEdit()
         self._edit_firmware.setPlaceholderText("Select firmware image file...")
         self._edit_firmware.setReadOnly(True)
         self._btn_browse = QPushButton("Browse")
-        self._btn_browse.setProperty("class", "secondary")
         self._btn_browse.clicked.connect(self._on_browse_firmware)
         row.addWidget(self._edit_firmware, 1)
         row.addWidget(self._btn_browse)
         flayout.addLayout(row)
         self._lbl_fw_info = QLabel("Format: —  |  Size: —")
-        self._lbl_fw_info.setStyleSheet("color:#1d2735;font-size:12px;font-weight:600;background:#ffffff;")
+        self._lbl_fw_info.setProperty("class", "caption")
         flayout.addWidget(self._lbl_fw_info)
         root.addWidget(fw_group)
 
@@ -129,34 +139,80 @@ class MainWindow(QMainWindow):
         actions.addStretch()
         self._btn_flash = QPushButton("Start Flash")
         self._btn_flash.setProperty("class", "primary")
-        self._btn_flash.setFont(QFont(self.font().family(), 12, QFont.Weight.Bold))
         self._btn_flash.clicked.connect(self._on_flash)
         actions.addWidget(self._btn_flash)
         root.addLayout(actions)
 
+        # The bar carries a label rather than using showMessage(): the message
+        # text cannot be indented to line up with the panels (neither
+        # contentsMargins nor a QSS padding moves it off 7px), and an expiring
+        # timed message blanks the bar instead of restoring the previous one.
         self._status = QStatusBar()
         self._status.setSizeGripEnabled(False)
+        self._lbl_status = QLabel()
+        self._lbl_status.setProperty("class", "status")
+        self._status.addWidget(self._lbl_status, 1)
         self.setStatusBar(self._status)
-        self._status.showMessage("Ready")
+
+        self._status_timer = QTimer(self)
+        self._status_timer.setSingleShot(True)
+        self._status_timer.timeout.connect(self._restore_status)
+        self._set_status("Ready")
 
     def _try_init_tool(self) -> None:
         try:
             self._flasher = Flasher()
             self._tool_available = True
-            self._status.showMessage("upgrade_tool ready")
+            self._set_status("Ready")
             self._poll_device()
         except ToolNotFoundError:
             self._tool_available = False
             self._btn_flash.setEnabled(False)
-            self._status.showMessage("upgrade_tool not found")
+            self._set_status("upgrade_tool not found")
 
     def _setup_polling(self) -> None:
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._poll_device)
         self._timer.start(3000)
 
+    def _set_status(self, text: str, timeout: int = 0) -> None:
+        """Show `text`; a positive `timeout` reverts to the standing status."""
+        if timeout <= 0:
+            self._status_idle = text
+        self._lbl_status.setText(text)
+        self._status_timer.stop()
+        if timeout > 0:
+            self._status_timer.start(timeout)
+
+    @Slot()
+    def _restore_status(self) -> None:
+        self._lbl_status.setText(self._status_idle)
+
+    def _current_theme(self) -> Theme:
+        scheme = QGuiApplication.styleHints().colorScheme()
+        return theme(QGuiApplication.palette(), scheme == Qt.ColorScheme.Dark)
+
+    @Slot()
+    def _apply_theme(self) -> None:
+        new = self._current_theme()
+        # Also the recursion guard: restyling re-emits PaletteChange.
+        if new == self._theme:
+            return
+        self._theme = new
+        self.setStyleSheet(new.qss)
+        self._set_device_label(self._device_connected, self._device_text)
+
+    def changeEvent(self, event: QEvent) -> None:
+        super().changeEvent(event)
+        # The scheme signal and the palette event do not arrive in a fixed
+        # order, and the palette is what the theme is derived from.
+        if event.type() == QEvent.Type.PaletteChange:
+            self._apply_theme()
+
     def _set_device_label(self, connected: bool, text: str) -> None:
-        dot_color = "#16a34a" if connected else "#dc2626"
+        self._device_connected = connected
+        self._device_text = text
+        dot_color = self._theme.device_ok if connected else self._theme.device_off
         self._lbl_device.setText(f'<span style="color:{dot_color};">●</span> {text}')
 
     def _fw_info_text(self, fmt: str, size: str) -> str:
@@ -177,7 +233,7 @@ class MainWindow(QMainWindow):
 
     @Slot()
     def _on_refresh(self) -> None:
-        self._status.showMessage("Scanning for devices...", 3000)
+        self._set_status("Scanning for devices...", 3000)
         self._poll_device()
 
     @Slot()
@@ -185,19 +241,53 @@ class MainWindow(QMainWindow):
         path, _ = QFileDialog.getOpenFileName(
             self,
             "Select Firmware",
-            str(Path.home()),
+            self._last_firmware_dir(),
             "Images (*.img *.bin *.raw);;All Files (*)",
         )
         if not path:
             return
+        self._load_firmware(path)
+
+    def _last_firmware_dir(self) -> str:
+        saved = str(self._settings.value(_LAST_DIR_KEY, "") or "")
+        return saved if saved and Path(saved).is_dir() else str(Path.home())
+
+    def _load_firmware(self, path: str) -> None:
         self._edit_firmware.setText(path)
+        self._settings.setValue(_LAST_DIR_KEY, str(Path(path).parent))
         try:
             info = detect_image_format(path)
             self._lbl_fw_info.setText(self._fw_info_text(info.format.display_name, info.size_display))
-            self._status.showMessage(f"Firmware loaded: {Path(path).name}", 3000)
+            self._set_status(f"Firmware loaded: {Path(path).name}", 3000)
         except Exception as e:  # noqa: BLE001
             self._lbl_fw_info.setText(self._fw_info_text("Error", "—"))
-            self._status.showMessage(f"Firmware parse error: {e}", 5000)
+            self._set_status(f"Firmware parse error: {e}", 5000)
+
+    def _dropped_firmware(self, event: QDragEnterEvent | QDropEvent) -> str | None:
+        if self._worker and self._worker.isRunning():
+            return None
+        mime = event.mimeData()
+        if not mime.hasUrls():
+            return None
+        urls = [u for u in mime.urls() if u.isLocalFile()]
+        if len(urls) != 1:
+            return None
+        path = urls[0].toLocalFile()
+        return path if Path(path).is_file() else None
+
+    def dragEnterEvent(self, event: QDragEnterEvent) -> None:
+        if self._dropped_firmware(event):
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event: QDropEvent) -> None:
+        path = self._dropped_firmware(event)
+        if not path:
+            event.ignore()
+            return
+        event.acceptProposedAction()
+        self._load_firmware(path)
 
     @Slot()
     def _on_flash(self) -> None:
@@ -215,7 +305,7 @@ class MainWindow(QMainWindow):
         self._btn_flash.setEnabled(False)
         self._btn_browse.setEnabled(False)
         self._btn_refresh.setEnabled(False)
-        self._status.showMessage("Starting flash...")
+        self._set_status("Starting flash...")
 
         self._worker = FlashWorker(self._flasher, fw)
         # Force queued delivery to the UI thread on Windows.
@@ -253,11 +343,11 @@ class MainWindow(QMainWindow):
             QMessageBox.StandardButton.Yes,
         )
         if ret != QMessageBox.StandardButton.Yes:
-            self._status.showMessage("Driver is required before flashing.", 5000)
+            self._set_status("Driver is required before flashing.", 5000)
             return False
 
         try:
-            self._status.showMessage("Installing Rockchip driver...")
+            self._set_status("Installing Rockchip driver...")
             tool.install_windows_driver()
         except DriverInstallError as e:
             QMessageBox.critical(self, "Driver Install Failed", str(e))
@@ -279,19 +369,19 @@ class MainWindow(QMainWindow):
             )
             return False
 
-        self._status.showMessage("Rockchip driver ready.", 4000)
+        self._set_status("Rockchip driver ready.", 4000)
         return True
 
     @Slot(str)
     def _on_flash_progress(self, message: str) -> None:
-        self._status.showMessage(message)
+        self._set_status(message)
 
     @Slot(bool, str)
     def _on_flash_finished(self, ok: bool, msg: str) -> None:
         self._btn_flash.setEnabled(True)
         self._btn_browse.setEnabled(True)
         self._btn_refresh.setEnabled(True)
-        self._status.showMessage("Flash completed." if ok else "Flash failed.", 8000)
+        self._set_status("Flash completed." if ok else "Flash failed.", 8000)
         if ok:
             QMessageBox.information(self, "Success", "Flash completed.")
         else:
