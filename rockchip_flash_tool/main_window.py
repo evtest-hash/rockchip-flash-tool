@@ -378,6 +378,11 @@ class MainWindow(QMainWindow):
 
     @Slot(bool, str)
     def _on_flash_finished(self, ok: bool, msg: str) -> None:
+        # Drop the callback before anything else: it points at this worker's
+        # signal, and the message boxes below run a nested event loop in which
+        # the poll timer fires. Keep the worker referenced -- releasing it here
+        # would destroy a QThread whose thread has not returned from run() yet.
+        self._flasher.set_progress_callback(None)
         self._btn_flash.setEnabled(True)
         self._btn_browse.setEnabled(True)
         self._btn_refresh.setEnabled(True)
@@ -386,4 +391,3 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "Success", "Flash completed.")
         else:
             QMessageBox.critical(self, "Flash Failed", msg)
-        self._worker = None

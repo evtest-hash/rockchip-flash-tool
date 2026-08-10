@@ -25,6 +25,10 @@
 
 ### Fixed
 
+- Device detection stopped working for the rest of the session once a flash had
+  run. The worker's progress callback outlived its QThread, so every poll raised
+  `RuntimeError: Signal source has been deleted` inside `Flasher._emit`, which
+  the polling loop reported as "No device connected".
 - A status message given a timeout left the bar blank when it expired instead of
   restoring the standing message.
 - Light-theme secondary text was below the WCAG AA contrast minimum.
