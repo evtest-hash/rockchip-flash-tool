@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rk-flash-tool"
+description = "A cross-platform GUI for flashing Rockchip devices"
+readme = "README.md"
+# The macOS universal2 build runs on /usr/bin/python3, which is 3.9 on current
+# macOS. Raising this floor breaks that build.
+requires-python = ">=3.9"
+dynamic = ["version", "dependencies"]
+
+[project.scripts]
+rk-flash-tool = "rk_flash_tool.__main__:main"
+
+[tool.setuptools]
+packages = ["rk_flash_tool"]
+
+[tool.setuptools.dynamic]
+# Single sources of truth: the version lives in the package, the runtime
+# dependencies live in requirements.txt (which the packaging scripts install
+# from directly).
+version = { attr = "rk_flash_tool.__version__" }
+dependencies = { file = ["requirements.txt"] }
