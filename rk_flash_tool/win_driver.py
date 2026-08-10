@@ -7,6 +7,8 @@ import sys
 from ctypes import wintypes
 from pathlib import Path
 
+from rk_flash_tool import resources
+
 ELEVATED_FLAG = "--install-rockusb-driver"
 
 # The elevated child is hidden and has no console, so its exit code is the only
@@ -19,7 +21,7 @@ _EXIT_MESSAGES = {
     EXIT_BAD_ARGS: "Internal error: invalid driver installation request.",
 }
 
-_DRIVER_ROOT = Path(__file__).resolve().parent.parent / "tools" / "windows" / "driver"
+_DRIVER_ROOT = resources.windows_driver_dir()
 _ERROR_CANCELLED = 1223
 _WAIT_OBJECT_0 = 0
 

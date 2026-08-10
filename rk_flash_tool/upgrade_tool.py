@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import platform
 import re
 import subprocess
 import tempfile
@@ -10,6 +9,8 @@ import errno
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
+
+from rk_flash_tool import resources
 
 _PID_TO_CHIP: dict[int, str] = {
     0x350A: "RK3568",
@@ -35,10 +36,6 @@ _PID_TO_CHIP: dict[int, str] = {
     0x110C: "RV1126",
     0x110B: "RV1109",
 }
-
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent
-_PLATFORM_KEY = {"Darwin": "darwin", "Linux": "linux", "Windows": "windows"}
-_TOOL_BINARY = {"Darwin": "upgrade_tool", "Linux": "upgrade_tool", "Windows": "upgrade_tool.exe"}
 
 
 class UpgradeToolError(Exception):
@@ -73,15 +70,13 @@ class DeviceInfo:
 
 
 def find_upgrade_tool(custom_path: str | None = None) -> Path:
-    system = platform.system()
-    tool_name = _TOOL_BINARY.get(system, "upgrade_tool")
     if custom_path:
         p = Path(custom_path)
         if p.exists():
             return p
         raise ToolNotFoundError(f"upgrade_tool not found: {custom_path}")
 
-    bundled = _PROJECT_ROOT / "tools" / _PLATFORM_KEY.get(system, "") / tool_name
+    bundled = resources.upgrade_tool_path()
     if bundled.exists():
         if not os.access(bundled, os.X_OK):
             os.chmod(bundled, 0o755)

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-# Chip model -> the bootloader shipped for it in rkbin/. These are exact
-# filenames: when a loader is updated in rkbin/, update it here too.
+# Chip model -> the bootloader shipped for it in vendor/rkbin/. These are exact
+# filenames: when a loader is updated there, update it here too.
 _LOADERS: dict[str, str] = {
     "RK3588": "rk3588_spl_loader_v1.19.113.bin",
     "RK3576": "rk3576_spl_loader_v1.09.108.bin",

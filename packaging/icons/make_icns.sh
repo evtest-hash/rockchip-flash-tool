@@ -6,6 +6,7 @@ if [[ $# -lt 1 || $# -gt 2 ]]; then
   exit 1
 fi
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SRC_PNG="$1"
 OUT_ICNS="${2:-assets/icon.icns}"
 ICONSET_DIR="$(mktemp -d /tmp/rkflash-iconset.XXXXXX).iconset"
@@ -25,7 +26,7 @@ trap 'rm -rf "$ICONSET_DIR"; rm -f "$PREPARED_PNG"' EXIT
 
 # Normalize icon for macOS: trim border + rounded mask.
 if python3 -c "import PySide6" >/dev/null 2>&1; then
-  if python3 scripts/prepare_macos_icon.py "$SRC_PNG" "$PREPARED_PNG"; then
+  if python3 "$SCRIPT_DIR/prepare_macos_icon.py" "$SRC_PNG" "$PREPARED_PNG"; then
     INPUT_FOR_ICONSET="$PREPARED_PNG"
   fi
 fi

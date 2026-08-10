@@ -3,14 +3,14 @@ param(
     [string]$ZipName = "Rockchip-Flash-Tool-windows-x64.zip",
     [string]$VenvDir = ".venv-win",
     [string]$PythonExe = "python",
-    [string]$IconPng = "assets-icon-1024.png",
+    [string]$IconPng = "assets/icon-1024.png",
     [string]$IconIco = "assets/icon.ico"
 )
 
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 
-$root = Split-Path -Parent $PSScriptRoot | Resolve-Path
+$root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot) | Resolve-Path
 Set-Location $root
 
 if (-not (Test-Path $VenvDir)) {
@@ -28,7 +28,7 @@ if (-not (Test-Path $IconPng)) {
 
 $needRebuildIcon = (-not (Test-Path $IconIco)) -or ((Get-Item $IconPng).LastWriteTimeUtc -gt (Get-Item $IconIco).LastWriteTimeUtc)
 if ($needRebuildIcon) {
-    & $venvPython scripts/make_ico.py $IconPng $IconIco
+    & $venvPython packaging/icons/make_ico.py $IconPng $IconIco
 }
 
 & $venvPython -m PyInstaller `
@@ -38,8 +38,8 @@ if ($needRebuildIcon) {
     --name "$AppName" `
     --icon "$IconIco" `
     --add-data "$IconIco;assets" `
-    --add-data "tools;tools" `
-    --add-data "rkbin;rkbin" `
+    --add-data "vendor/upgrade_tool/windows;vendor/upgrade_tool/windows" `
+    --add-data "vendor/rkbin;vendor/rkbin" `
     rk_flash_tool/__main__.py
 
 $zipPath = Join-Path "dist" $ZipName

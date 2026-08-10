@@ -161,6 +161,17 @@ if [[ -z "$desktop_file" ]]; then
   fail "glibc/runtime mismatch" "missing desktop entry after extraction" "$EXTRACT_LOG"
 fi
 
+# The package bundles only this platform's upgrade_tool, so a wrong --add-data
+# path would ship an AppImage that starts fine and cannot flash anything. The
+# app itself only disables its button in that case, so nothing else notices.
+bundled_tool="$(find squashfs-root -type f -path '*/vendor/upgrade_tool/linux/upgrade_tool' -print -quit || true)"
+if [[ -z "$bundled_tool" ]]; then
+  fail "packaging defect" "no vendor/upgrade_tool/linux/upgrade_tool inside the AppImage" "$EXTRACT_LOG"
+fi
+if find squashfs-root -type d \( -path '*/vendor/upgrade_tool/darwin' -o -path '*/vendor/upgrade_tool/windows' \) | grep -q .; then
+  fail "packaging defect" "the AppImage bundles another platform's upgrade_tool" "$EXTRACT_LOG"
+fi
+
 if command -v ldd >/dev/null 2>&1; then
   ldd "$main_bin" >"$LDD_LOG" 2>&1 || true
 else

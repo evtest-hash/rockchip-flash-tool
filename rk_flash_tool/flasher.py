@@ -4,6 +4,7 @@ import time
 from pathlib import Path
 from typing import Callable
 
+from rk_flash_tool import resources
 from rk_flash_tool.chip_db import find_loader
 from rk_flash_tool.image_format import ImageFormat, ImageInfo, detect_image_format
 from rk_flash_tool.upgrade_tool import DeviceInfo, DeviceNotFoundError, UpgradeTool, UpgradeToolError
@@ -79,12 +80,11 @@ class Flasher:
 
     def _handle_maskrom(self, device: DeviceInfo) -> None:
         self._emit("Maskrom mode: downloading bootloader...")
-        rkbin_dir = Path(__file__).resolve().parent.parent / "rkbin"
-        loader = find_loader(device.chip_model, rkbin_dir) if device.chip_model else None
+        loader = find_loader(device.chip_model, resources.rkbin_dir()) if device.chip_model else None
         if not loader:
             raise FlashError(
                 f"No bootloader found for {device.chip_display}.",
-                "Make sure rkbin contains a matching loader.",
+                "Make sure vendor/rkbin contains a matching loader.",
             )
         self._emit(f"Downloading {loader.name}")
         if not self._tool.download_boot(loader):

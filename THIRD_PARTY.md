@@ -3,26 +3,26 @@
 This repository vendors prebuilt binaries produced by Rockchip. They are not
 part of this project's source and are redistributed as-is.
 
-**Unverified:** the exact upstream commit for `rkbin/` and the redistribution
+**Unverified:** the exact upstream commit for `vendor/rkbin/` and the redistribution
 license Rockchip applies to these binaries have not been confirmed. Do not treat
 the "Origin" entries below as legally authoritative until that is checked.
 
-## `tools/` — Rockchip upgrade_tool
+## `vendor/upgrade_tool/` — Rockchip upgrade_tool
 
 Command-line flashing tool. Version taken from each directory's `revision.txt`.
 
 | Path | Version | Size | SHA-256 |
 |---|---|---|---|
-| `tools/darwin/upgrade_tool` | v2.44 | 908K | `c24a53050510194f5cad65d85c749c67a5d42f7d2134eb37529b67db552d5f70` |
-| `tools/linux/upgrade_tool` | v2.44 | 2804K | `65781afe7c7633d8c72187e78c31822d79f7224a979b922369970dcbbe06a430` |
-| `tools/windows/upgrade_tool.exe` | v2.46 | 1608K | `789c509dde39206d27b2f8915a5a169ff5eafb5b21fdb2108d0709bdda9ebde0` |
+| `vendor/upgrade_tool/darwin/upgrade_tool` | v2.44 | 908K | `c24a53050510194f5cad65d85c749c67a5d42f7d2134eb37529b67db552d5f70` |
+| `vendor/upgrade_tool/linux/upgrade_tool` | v2.44 | 2804K | `65781afe7c7633d8c72187e78c31822d79f7224a979b922369970dcbbe06a430` |
+| `vendor/upgrade_tool/windows/upgrade_tool.exe` | v2.46 | 1608K | `789c509dde39206d27b2f8915a5a169ff5eafb5b21fdb2108d0709bdda9ebde0` |
 
-## `tools/windows/driver/` — Rockchip USB driver (rockusb)
+## `vendor/upgrade_tool/windows/driver/` — Rockchip USB driver (rockusb)
 
 `DriverVer = 11/09/2023, 5.13.0000.0`. Signed `.sys`/`.cat`/`.inf` for x86 and
 x64, covering Windows 7 / 8 / 8.1 / 10.
 
-## `rkbin/` — Rockchip bootloaders
+## `vendor/rkbin/` — Rockchip bootloaders
 
 Origin: <https://github.com/rockchip-linux/rkbin> (upstream commit not recorded).
 

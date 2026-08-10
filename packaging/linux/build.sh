@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 APP_NAME="${APP_NAME:-Rockchip-Flash-Tool}"
 APPIMAGE_NAME="${APPIMAGE_NAME:-Rockchip-Flash-Tool-linux-x86_64.AppImage}"
 VENV_DIR="${VENV_DIR:-.venv-linux}"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
-ICON_PNG="${ICON_PNG:-assets-icon-1024.png}"
+ICON_PNG="${ICON_PNG:-assets/icon-1024.png}"
 LINUXDEPLOY_URL="${LINUXDEPLOY_URL:-https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage}"
 LINUXDEPLOY_BIN="${LINUXDEPLOY_BIN:-$ROOT_DIR/.cache/linuxdeploy-x86_64.AppImage}"
 
@@ -31,8 +31,8 @@ python -m PyInstaller \
   --clean \
   --windowed \
   --name "$APP_NAME" \
-  --add-data "tools:tools" \
-  --add-data "rkbin:rkbin" \
+  --add-data "vendor/upgrade_tool/linux:vendor/upgrade_tool/linux" \
+  --add-data "vendor/rkbin:vendor/rkbin" \
   rk_flash_tool/__main__.py
 
 APPDIR="$ROOT_DIR/dist/AppDir"

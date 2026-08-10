@@ -12,7 +12,7 @@
   message and then ignored).
 - Bootloader lookup no longer prefix-matches filenames or searches the firmware
   directory and `~/.rk-flash-tool/tools`. Chip-to-loader mapping is now the
-  exact filename shipped in `rkbin/`.
+  exact filename shipped in `vendor/rkbin/`.
 - The Linux packaging script no longer guesses the AppImage output filename from
   six candidate locations, and no longer carries PyQt5 branches — this project
   ships PySide6.

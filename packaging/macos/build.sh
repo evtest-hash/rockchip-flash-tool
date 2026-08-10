@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 APP_NAME="Rockchip Flash Tool"
 # Reverse-DNS, as macOS expects. PyInstaller otherwise derives it from --name,
 # which yields "Rockchip Flash Tool" -- spaces and all.
 BUNDLE_ID="${BUNDLE_ID:-com.focalcrest.rockchip-flash-tool}"
 DMG_NAME="${DMG_NAME:-Rockchip-Flash-Tool-macOS-universal.dmg}"
-ICON_PNG="${ICON_PNG:-assets-icon-1024.png}"
+ICON_PNG="${ICON_PNG:-assets/icon-1024.png}"
 ICON_ICNS="${ICON_ICNS:-assets/icon.icns}"
 TARGET_ARCH="${TARGET_ARCH:-universal2}"
 DEPLOY_TARGET="${DEPLOY_TARGET:-10.15}"
@@ -40,7 +40,7 @@ fi
 
 # Rebuild icon when missing, when source changed, or when explicitly requested.
 if [[ ! -f "$ICON_ICNS" || "$ICON_PNG" -nt "$ICON_ICNS" || "${FORCE_ICON_REBUILD:-0}" == "1" ]]; then
-  bash "scripts/make_icns.sh" "$ICON_PNG" "$ICON_ICNS"
+  bash "packaging/icons/make_icns.sh" "$ICON_PNG" "$ICON_ICNS"
 fi
 
 export MACOSX_DEPLOYMENT_TARGET="$DEPLOY_TARGET"
@@ -53,8 +53,8 @@ python -m PyInstaller \
   --name "$APP_NAME" \
   --osx-bundle-identifier "$BUNDLE_ID" \
   --icon "$ICON_ICNS" \
-  --add-data "tools/darwin:tools/darwin" \
-  --add-data "rkbin:rkbin" \
+  --add-data "vendor/upgrade_tool/darwin:vendor/upgrade_tool/darwin" \
+  --add-data "vendor/rkbin:vendor/rkbin" \
   rk_flash_tool/__main__.py
 
 STAGE_DIR="dist/dmg-stage"
