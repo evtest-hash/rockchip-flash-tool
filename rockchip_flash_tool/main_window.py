@@ -224,10 +224,10 @@ class MainWindow(QMainWindow):
             return
         try:
             dev = self._flasher.detect_device()
-            self._set_device_label(
-                True,
-                f"Connected  ·  {dev.chip_display}  ·  {dev.mode}  ·  SN {dev.serial_no or '—'}",
-            )
+            parts = ["Connected", dev.chip_display, dev.mode]
+            if dev.serial_no:
+                parts.append(f"SN {dev.serial_no}")
+            self._set_device_label(True, "  ·  ".join(parts))
         except Exception:  # noqa: BLE001
             self._set_device_label(False, "No device connected")
 

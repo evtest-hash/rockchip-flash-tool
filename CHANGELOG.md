@@ -25,6 +25,9 @@
 
 ### Fixed
 
+- A board in Maskrom no longer reports a serial number. It has none, and
+  `upgrade_tool` fills the field with an empty string on macOS and the literal
+  `rockchip` on Windows, the latter reading as a genuine serial.
 - Device detection stopped working for the rest of the session once a flash had
   run. The worker's progress callback outlived its QThread, so every poll raised
   `RuntimeError: Signal source has been deleted` inside `Flasher._emit`, which

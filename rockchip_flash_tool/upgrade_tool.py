@@ -518,15 +518,21 @@ class UpgradeTool:
         devices: list[DeviceInfo] = []
         for m in pattern.finditer(output):
             pid = int(m.group(3), 16)
+            mode = m.group(5).capitalize()
+            # A board in Maskrom has no serial number to report, and the tool
+            # fills the field with whatever its platform build uses -- an empty
+            # string on macOS, the literal "rockchip" on Windows. Neither is a
+            # serial, so nothing downstream should be told it has one.
+            serial_no = m.group(6) if mode != "Maskrom" else None
             devices.append(
                 DeviceInfo(
                     dev_no=int(m.group(1)),
                     vid=int(m.group(2), 16),
                     pid=pid,
                     location_id=int(m.group(4), 16),
-                    mode=m.group(5).capitalize(),
+                    mode=mode,
                     chip_model=_PID_TO_CHIP.get(pid),
-                    serial_no=m.group(6),
+                    serial_no=serial_no,
                 )
             )
         return devices
