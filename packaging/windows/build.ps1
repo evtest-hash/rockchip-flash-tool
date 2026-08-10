@@ -36,7 +36,6 @@ if ($needRebuildIcon) {
     --noconfirm `
     --clean `
     --windowed `
-    --specpath build `
     --name "$AppName" `
     --icon "$IconIco" `
     --add-data "$IconIco;assets" `

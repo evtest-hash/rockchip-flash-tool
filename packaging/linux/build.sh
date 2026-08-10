@@ -30,7 +30,6 @@ python -m PyInstaller \
   --noconfirm \
   --clean \
   --windowed \
-  --specpath build \
   --name "$APP_NAME" \
   --add-data "vendor/upgrade_tool/linux:vendor/upgrade_tool/linux" \
   --add-data "vendor/rkbin:vendor/rkbin" \

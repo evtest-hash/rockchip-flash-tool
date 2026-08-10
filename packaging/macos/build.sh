@@ -50,7 +50,6 @@ python -m PyInstaller \
   --noconfirm \
   --clean \
   --windowed \
-  --specpath build \
   --target-arch "$TARGET_ARCH" \
   --name "$APP_NAME" \
   --osx-bundle-identifier "$BUNDLE_ID" \

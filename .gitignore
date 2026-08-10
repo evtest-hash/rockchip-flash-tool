@@ -2,8 +2,10 @@
 __pycache__/
 *.pyc
 
-# Everything a build produces, including the generated icons and the
-# PyInstaller spec, is written under build/ or dist/.
+# Everything a build produces goes under build/ or dist/, except PyInstaller's
+# spec file: --specpath makes it resolve every relative --add-data against the
+# spec's own directory, so the spec stays at the root and is ignored here.
+*.spec
 build/
 dist/
 
