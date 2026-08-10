@@ -163,9 +163,15 @@ class UpgradeTool:
         # module, so it comes from elsewhere -- in three tiers, each losing only
         # progress fidelity, never the ability to flash:
         #   1. pywinpty (ConPTY/WinPTY): a real PTY, so the tool leaves stdout
-        #      unbuffered and \r progress arrives live. Measured on Windows 10 as
-        #      the tier that actually runs.
-        #   2. PowerShell relay: for when pywinpty cannot be imported or spawned.
+        #      unbuffered and \r progress arrives live. Measured as UNAVAILABLE in
+        #      the shipped layout: spawn() is handed a list2cmdline() string and
+        #      shlex-splits it with posix=False, so the quotes it added around
+        #      "...\Rockchip Flash Tool\_internal\..." stay inside the token and
+        #      the executable lookup fails. It only works when the install path
+        #      has no spaces. Passing the argv list to spawn() instead fixes it,
+        #      but that moves flashing onto a different tier, so it needs a run
+        #      against a real board first.
+        #   2. PowerShell relay: what actually carries the shipped Windows app.
         #      Writes to a file this side tails, dodging pipe buffering.
         #   3. Raw pipe: last resort if even PowerShell will not start. Output can
         #      arrive in one burst at the end, but the flash still completes.
