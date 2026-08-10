@@ -1,34 +1,41 @@
 # Rockchip Flash Tool
 
-Rockchip Flash Tool 是一款跨平台桌面应用，目标是将 Rockchip 烧录流程变成简单、一致的用户体验。
+[![Build](https://github.com/evtest-hash/rockchip-flash-tool/actions/workflows/build-release.yml/badge.svg)](https://github.com/evtest-hash/rockchip-flash-tool/actions/workflows/build-release.yml)
+[![Release](https://img.shields.io/github/v/release/evtest-hash/rockchip-flash-tool)](https://github.com/evtest-hash/rockchip-flash-tool/releases/latest)
+![Platforms](https://img.shields.io/badge/platforms-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)
 
-## 视觉预览
+选好固件，点 **Start Flash**，两步烧完一块 Rockchip 板子。
+接的是哪颗芯片、板子在什么模式、该用哪个 loader、镜像怎么写，工具自己判断。
 
-### 软件界面截图
+[English](README.md) · [简体中文](README.zh-CN.md)
 
-![macOS 界面截图](docs/images/ui-screenshot.png)
+| 浅色 | 深色 |
+|---|---|
+| ![浅色界面](assets/screenshots/ui-light.png) | ![深色界面](assets/screenshots/ui-dark.png) |
 
 ## 下载
 
-- 最新版本下载: [点此下载](https://github.com/evtest-hash/rockchip-flash-tool/releases/latest)
-- 历史版本: [Release 列表](https://github.com/evtest-hash/rockchip-flash-tool/releases)
+| 平台 | 文件 | 说明 |
+|---|---|---|
+| macOS 11+ | [Rockchip-Flash-Tool-macOS-universal.dmg](https://github.com/evtest-hash/rockchip-flash-tool/releases/latest/download/Rockchip-Flash-Tool-macOS-universal.dmg) | 通用版，Apple 芯片和 Intel 都能跑 |
+| Windows 10/11 | [Rockchip-Flash-Tool-windows-x64.zip](https://github.com/evtest-hash/rockchip-flash-tool/releases/latest/download/Rockchip-Flash-Tool-windows-x64.zip) | 首次运行会自动装 Rockchip USB 驱动 |
+| Linux x86_64 | [Rockchip-Flash-Tool-linux-x86_64.AppImage](https://github.com/evtest-hash/rockchip-flash-tool/releases/latest/download/Rockchip-Flash-Tool-linux-x86_64.AppImage) | 需要 FUSE2，见下文 |
+
+每个版本发布前，都会在三个平台上分别构建、各自跑一遍冒烟测试。
+[全部版本 →](https://github.com/evtest-hash/rockchip-flash-tool/releases)
 
 ## 安装说明
 
-### macOS：提示“身份不明开发者/无法验证开发者”
+### macOS：提示"身份不明开发者/无法验证开发者"
 
-安装后如果被系统拦截，请按以下方式处理：
+安装后如果被系统拦截：
 
 1. 在 Finder 中右键应用，选择 **打开**。
 2. 在弹窗中再次点击 **打开**。
 
-如果仍然被拦截：
+还是打不开，就到 **系统设置 → 隐私与安全性**，在安全提示区域找到被拦截的应用，点 **仍要打开**。
 
-1. 打开 **系统设置** -> **隐私与安全性**。
-2. 在安全提示区域找到被拦截的应用信息。
-3. 点击 **仍要打开**，然后确认。
-
-若仍因隔离属性无法启动，可执行：
+如果是隔离属性导致的，执行：
 
 ```bash
 xattr -dr com.apple.quarantine "/Applications/Rockchip Flash Tool.app"
@@ -36,72 +43,36 @@ xattr -dr com.apple.quarantine "/Applications/Rockchip Flash Tool.app"
 
 ### Linux：AppImage 依赖 FUSE2
 
-Linux 首次运行 AppImage 可能提示缺少 FUSE 相关依赖，请安装 FUSE2：
+首次运行 AppImage 可能提示缺少 FUSE，装上 FUSE2 运行时即可：
 
-- Ubuntu/Debian（22.04 及更早）：
+| 发行版 | 命令 |
+|---|---|
+| Ubuntu / Debian（≤ 22.04） | `sudo apt install libfuse2` |
+| Ubuntu 24.04+ | `sudo apt install libfuse2t64` |
+| Fedora | `sudo dnf install fuse-libs` |
+| Arch Linux | `sudo pacman -S fuse2` |
+| openSUSE | `sudo zypper install libfuse2` |
 
-```bash
-sudo apt update
-sudo apt install libfuse2
-```
-
-- Ubuntu 24.04 及更新版本：
-
-```bash
-sudo apt update
-sudo apt install libfuse2t64
-```
-
-- Fedora：
-
-```bash
-sudo dnf install fuse-libs
-```
-
-- Arch Linux：
-
-```bash
-sudo pacman -S fuse2
-```
-
-- openSUSE：
-
-```bash
-sudo zypper install libfuse2
-```
-
-如果暂时不能安装 FUSE2，可用解包模式运行：
+装不了 FUSE2 的话，用解包模式跑：
 
 ```bash
 APPIMAGE_EXTRACT_AND_RUN=1 ./Rockchip-Flash-Tool-linux-x86_64.AppImage
 ```
 
-## 为什么要做这个工具
+## 为什么做这个工具
 
-Rockchip 烧录在实际使用中经常比较复杂，因为不同条件会导致流程变化。
+Rockchip 烧录没有一套通用流程。芯片型号不一样，板子进的模式不一样，镜像格式不一样，操作系统还不一样，条件一变步骤就得跟着变，往往连工具都得换一个。
 
-常见痛点包括：
+这些差异由工具内部消化，不往外抛给操作员：
 
-1. 不同芯片型号需要匹配不同 loader。
-2. 设备可能处于不同烧录模式，不同模式对应不同流程。
-3. 固件格式不同，烧录路径也不同。
-4. 某些平台还需要额外准备驱动环境。
-5. 不同操作系统往往需要不同工具，使用体验不统一。
+- **三个平台一套流程。** 同一个窗口，同样两步。
+- **少判断，少出错。** 芯片型号、当前模式、镜像格式都是自动识别，不用人选。
+- **新人上手快。** 不懂底层烧录机制也能烧对。
 
-## 设计理念
+实验室、产线、现场都能直接用。
 
-这个工具将上述差异和复杂性在内部完成抽象，对用户隐藏不必要的技术细节。
+## 许可
 
-用户侧只需要两步：
+[Apache-2.0](LICENSE)。
 
-1. 选择固件。
-2. 点击 **Start Flash**。
-
-即使不了解底层烧录机制，也能完成正确操作。
-
-## 核心优势
-
-- macOS / Windows / Linux 三端体验一致。
-- 减少人工判断步骤，降低误操作概率。
-- 降低新用户学习成本。
-- 提升实验室、产线和现场场景下的一致性与效率。
+发布包里还带了 Qt 运行时（LGPL-3.0）和 Rockchip 预编译的二进制，它们沿用各自原本的授权条款，详见 [THIRD_PARTY.md](THIRD_PARTY.md)。
