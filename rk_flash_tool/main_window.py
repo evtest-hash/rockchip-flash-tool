@@ -43,7 +43,7 @@ class FlashWorker(QThread):
         self._image_path = image_path
 
     def run(self) -> None:
-        self._flasher.set_progress_callback(lambda p: self.progress.emit(p.message))
+        self._flasher.set_progress_callback(self.progress.emit)
         try:
             ok = self._flasher.flash(self._image_path)
             self.finished.emit(ok, "Flash completed successfully." if ok else "Flash failed.")

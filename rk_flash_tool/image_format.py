@@ -60,12 +60,3 @@ def detect_image_format(path: str | Path) -> ImageInfo:
         fmt = ImageFormat.RAW
 
     return ImageInfo(path=p, format=fmt, size_bytes=p.stat().st_size)
-
-
-def validate_firmware_for_chip(image_info: ImageInfo, chip_model: str) -> tuple[bool, str]:
-    # Keep validation lightweight. Real compatibility checks are usually board-specific.
-    if image_info.format == ImageFormat.UNKNOWN:
-        return False, "Unrecognized image format."
-    if not chip_model:
-        return False, "Chip model is unknown."
-    return True, "ok"

@@ -67,19 +67,11 @@ cat > "$APPDIR/AppRun" <<EOF
 #!/usr/bin/env bash
 HERE="\$(dirname "\$(readlink -f "\$0")")"
 APP_BASE="\$HERE/usr/lib/$APP_NAME"
-QT_PLUGIN_DIR=""
-
-if [[ -d "\$APP_BASE/_internal/PySide6/Qt/plugins" ]]; then
-  QT_PLUGIN_DIR="\$APP_BASE/_internal/PySide6/Qt/plugins"
-elif [[ -d "\$APP_BASE/PyQt5/Qt5/plugins" ]]; then
-  QT_PLUGIN_DIR="\$APP_BASE/PyQt5/Qt5/plugins"
-fi
+QT_PLUGIN_DIR="\$APP_BASE/_internal/PySide6/Qt/plugins"
 
 export LD_LIBRARY_PATH="\$HERE/usr/lib:\$APP_BASE:\$APP_BASE/_internal:\$APP_BASE/_internal/PySide6/Qt/lib:\${LD_LIBRARY_PATH:-}"
-if [[ -n "\$QT_PLUGIN_DIR" ]]; then
-  export QT_PLUGIN_PATH="\$QT_PLUGIN_DIR:\${QT_PLUGIN_PATH:-}"
-  export QT_QPA_PLATFORM_PLUGIN_PATH="\$QT_PLUGIN_DIR/platforms"
-fi
+export QT_PLUGIN_PATH="\$QT_PLUGIN_DIR:\${QT_PLUGIN_PATH:-}"
+export QT_QPA_PLATFORM_PLUGIN_PATH="\$QT_PLUGIN_DIR/platforms"
 exec "\$HERE/usr/bin/$APP_NAME" "\$@"
 EOF
 chmod +x "$APPDIR/AppRun"
@@ -119,20 +111,18 @@ export LDAI_OUTPUT="$ROOT_DIR/dist/$APPIMAGE_NAME"
 # the main binary never reaches libqxcb.so and its libxcb/libxkbcommon needs are
 # left to the host. Point linuxdeploy at the plugin directories so those land in
 # the AppDir and the AppImage really is self-contained.
-DEPLOY_DEPS_ARGS=()
-for rel in "_internal/PySide6/Qt/plugins" "PySide6/Qt/plugins" "PyQt5/Qt5/plugins"; do
-  plugin_root="$APP_LIB_DIR/$rel"
-  [[ -d "$plugin_root" ]] || continue
-  for sub in platforms xcbglintegrations platformthemes imageformats iconengines; do
-    [[ -d "$plugin_root/$sub" ]] || continue
-    DEPLOY_DEPS_ARGS+=(--deploy-deps-only "$plugin_root/$sub")
-    echo "deploying deps of $rel/$sub"
-  done
-  break
-done
-if [[ ${#DEPLOY_DEPS_ARGS[@]} -eq 0 ]]; then
-  echo "Warning: no Qt plugin directory found under $APP_LIB_DIR" >&2
+PLUGIN_ROOT="$APP_LIB_DIR/_internal/PySide6/Qt/plugins"
+if [[ ! -d "$PLUGIN_ROOT" ]]; then
+  echo "Qt plugin directory not found: $PLUGIN_ROOT" >&2
+  exit 1
 fi
+
+DEPLOY_DEPS_ARGS=()
+for sub in platforms xcbglintegrations platformthemes imageformats iconengines; do
+  [[ -d "$PLUGIN_ROOT/$sub" ]] || continue
+  DEPLOY_DEPS_ARGS+=(--deploy-deps-only "$PLUGIN_ROOT/$sub")
+  echo "deploying deps of $sub"
+done
 
 APPIMAGE_EXTRACT_AND_RUN=1 "$LINUXDEPLOY_BIN" \
   --appdir "$APPDIR" \
@@ -142,22 +132,8 @@ APPIMAGE_EXTRACT_AND_RUN=1 "$LINUXDEPLOY_BIN" \
   --icon-file "$LINUXDEPLOY_ICON" \
   --output appimage
 
-if [[ -f "$ROOT_DIR/dist/$APPIMAGE_NAME" ]]; then
-  :
-elif [[ -f "$ROOT_DIR/appimage" ]]; then
-  mv "$ROOT_DIR/appimage" "dist/$APPIMAGE_NAME"
-elif [[ -f "$ROOT_DIR/$APP_NAME"-x86_64.AppImage ]]; then
-  mv "$ROOT_DIR/$APP_NAME"-x86_64.AppImage "dist/$APPIMAGE_NAME"
-elif [[ -f "$ROOT_DIR/Rockchip_Flash_Tool-x86_64.AppImage" ]]; then
-  mv "$ROOT_DIR/Rockchip_Flash_Tool-x86_64.AppImage" "dist/$APPIMAGE_NAME"
-elif [[ -f "dist/$APP_NAME"-x86_64.AppImage ]]; then
-  mv "dist/$APP_NAME"-x86_64.AppImage "dist/$APPIMAGE_NAME"
-elif compgen -G "$ROOT_DIR/*.AppImage" > /dev/null; then
-  mv "$ROOT_DIR/"*.AppImage "dist/$APPIMAGE_NAME"
-fi
-
 if [[ ! -f "dist/$APPIMAGE_NAME" ]]; then
-  echo "linuxdeploy did not produce dist/$APPIMAGE_NAME" >&2
+  echo "linuxdeploy did not honour LDAI_OUTPUT=dist/$APPIMAGE_NAME" >&2
   exit 1
 fi
 
