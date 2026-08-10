@@ -148,12 +148,15 @@ if [[ ! -x squashfs-root/AppRun ]]; then
   fail "glibc/runtime mismatch" "missing squashfs-root/AppRun after extraction" "$EXTRACT_LOG"
 fi
 
+# Spelled out on purpose. APP_NAME in packaging/linux/build.sh fixes this name,
+# and a checker that derives its expectation from what it is checking verifies
+# nothing. Linux uses the hyphenated form because a PATH-invoked binary with
+# spaces is not idiomatic and would need quoting in the desktop entry's Exec=;
+# the display name stays "Rockchip Flash Tool" in Name=, as on the other two
+# platforms.
 main_bin="squashfs-root/usr/bin/Rockchip-Flash-Tool"
 if [[ ! -x "$main_bin" ]]; then
-  main_bin="$(find squashfs-root/usr/lib -maxdepth 2 -type f -perm -111 | head -n 1 || true)"
-fi
-if [[ -z "$main_bin" ]]; then
-  fail "glibc/runtime mismatch" "missing extracted main binary under squashfs-root/usr/lib" "$EXTRACT_LOG"
+  fail "packaging defect" "missing $main_bin in the AppImage" "$EXTRACT_LOG"
 fi
 
 desktop_file="$(find squashfs-root -maxdepth 2 -name '*.desktop' | head -n 1 || true)"
