@@ -386,6 +386,10 @@ class MainWindow(QMainWindow):
         self._btn_flash.setEnabled(True)
         self._btn_browse.setEnabled(True)
         self._btn_refresh.setEnabled(True)
+        # Flash progress is shown without a timeout, which makes each line the
+        # standing status; put that back to Ready so the result message below
+        # expires into it rather than into a stale progress line.
+        self._status_idle = "Ready"
         self._set_status("Flash completed." if ok else "Flash failed.", 8000)
         if ok:
             QMessageBox.information(self, "Success", "Flash completed.")

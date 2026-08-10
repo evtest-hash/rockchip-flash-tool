@@ -37,6 +37,8 @@
   the polling loop reported as "No device connected".
 - A status message given a timeout left the bar blank when it expired instead of
   restoring the standing message.
+- The status bar kept the last flash progress line as its standing text, so the
+  result message expired into a stale line rather than back to `Ready`.
 - Light-theme secondary text was below the WCAG AA contrast minimum.
 
 ### Removed
