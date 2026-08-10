@@ -9,9 +9,9 @@
 
 [English](README.md) · [简体中文](README.zh-CN.md)
 
-| 浅色 | 深色 |
-|---|---|
-| ![浅色界面](assets/screenshots/ui-light.png) | ![深色界面](assets/screenshots/ui-dark.png) |
+![浅色界面](assets/screenshots/ui-light.png)
+
+![深色界面](assets/screenshots/ui-dark.png)
 
 ## 下载
 

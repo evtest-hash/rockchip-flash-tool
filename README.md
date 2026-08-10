@@ -10,9 +10,9 @@ loader it needs, and how the image has to be written.
 
 [English](README.md) · [简体中文](README.zh-CN.md)
 
-| Light | Dark |
-|---|---|
-| ![Light theme](assets/screenshots/ui-light.png) | ![Dark theme](assets/screenshots/ui-dark.png) |
+![Light theme](assets/screenshots/ui-light.png)
+
+![Dark theme](assets/screenshots/ui-dark.png)
 
 ## Download
 
