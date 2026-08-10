@@ -4,7 +4,7 @@ param(
     [string]$VenvDir = ".venv-win",
     [string]$PythonExe = "python",
     [string]$IconPng = "assets/icon-1024.png",
-    [string]$IconIco = "assets/icon.ico"
+    [string]$IconIco = "build/icons/icon.ico"
 )
 
 $ErrorActionPreference = "Stop"
@@ -28,6 +28,7 @@ if (-not (Test-Path $IconPng)) {
 
 $needRebuildIcon = (-not (Test-Path $IconIco)) -or ((Get-Item $IconPng).LastWriteTimeUtc -gt (Get-Item $IconIco).LastWriteTimeUtc)
 if ($needRebuildIcon) {
+    New-Item -ItemType Directory -Force -Path (Split-Path $IconIco) | Out-Null
     & $venvPython packaging/icons/make_ico.py $IconPng $IconIco
 }
 
@@ -35,6 +36,7 @@ if ($needRebuildIcon) {
     --noconfirm `
     --clean `
     --windowed `
+    --specpath build `
     --name "$AppName" `
     --icon "$IconIco" `
     --add-data "$IconIco;assets" `

@@ -1,16 +1,11 @@
-.venv/
-.venv-*/
+.venv*/
 __pycache__/
 *.pyc
-*.pyo
-*.pyd
 
+# Everything a build produces, including the generated icons and the
+# PyInstaller spec, is written under build/ or dist/.
 build/
 dist/
-*.spec
-.build/
-.pytest_cache/
-.mypy_cache/
-*.egg-info/
 
 .DS_Store
+AGENTS.md

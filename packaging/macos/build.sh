@@ -8,7 +8,7 @@ APP_NAME="Rockchip Flash Tool"
 BUNDLE_ID="${BUNDLE_ID:-com.focalcrest.rockchip-flash-tool}"
 DMG_NAME="${DMG_NAME:-Rockchip-Flash-Tool-macOS-universal.dmg}"
 ICON_PNG="${ICON_PNG:-assets/icon-1024.png}"
-ICON_ICNS="${ICON_ICNS:-assets/icon.icns}"
+ICON_ICNS="${ICON_ICNS:-build/icons/icon.icns}"
 TARGET_ARCH="${TARGET_ARCH:-universal2}"
 DEPLOY_TARGET="${DEPLOY_TARGET:-10.15}"
 VENV_DIR="${VENV_DIR:-}"
@@ -40,6 +40,7 @@ fi
 
 # Rebuild icon when missing, when source changed, or when explicitly requested.
 if [[ ! -f "$ICON_ICNS" || "$ICON_PNG" -nt "$ICON_ICNS" || "${FORCE_ICON_REBUILD:-0}" == "1" ]]; then
+  mkdir -p "$(dirname "$ICON_ICNS")"
   bash "packaging/icons/make_icns.sh" "$ICON_PNG" "$ICON_ICNS"
 fi
 
@@ -49,6 +50,7 @@ python -m PyInstaller \
   --noconfirm \
   --clean \
   --windowed \
+  --specpath build \
   --target-arch "$TARGET_ARCH" \
   --name "$APP_NAME" \
   --osx-bundle-identifier "$BUNDLE_ID" \
