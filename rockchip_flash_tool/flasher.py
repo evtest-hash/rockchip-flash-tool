@@ -55,10 +55,16 @@ class Flasher:
 
             self._emit("Analyzing image format...")
             info = detect_image_format(image_path)
+            # An RK package is identified by a magic at offset 0, so anything
+            # that is not one cannot be fed to UF -- it goes out sector by
+            # sector with WL. The same flag decides the reset below, because UF
+            # resets the board itself and WL leaves it where it was; deriving
+            # the two from one predicate keeps them from drifting apart.
+            raw_write = not info.format.is_rk_format
             if info.format == ImageFormat.UNKNOWN:
-                self._emit("Unrecognized image format.")
+                self._emit("No partition table found; writing as a raw image.")
 
-            if info.format.is_rk_format:
+            if not raw_write:
                 self._emit("RK firmware detected, flashing via UF directly.")
             elif dev.mode.lower() == "maskrom":
                 self._handle_maskrom(dev)
@@ -66,10 +72,10 @@ class Flasher:
                 self._emit("Loader mode detected, flashing raw image directly.")
 
             self._emit("Starting flash...")
-            ok = self._do_flash(info)
+            ok = self._do_flash(info, raw_write)
             if not ok:
                 raise FlashError("Flashing failed.", "Please reconnect the board and retry.")
-            if info.format == ImageFormat.RAW:
+            if raw_write:
                 self._emit("Resetting device...")
                 if not self._tool.reset_device():
                     self._emit("Device reset did not confirm; power-cycle the board.")
@@ -91,15 +97,10 @@ class Flasher:
             raise FlashError("Bootloader download failed.")
         time.sleep(2)
 
-    def _do_flash(self, info: ImageInfo) -> bool:
+    def _do_flash(self, info: ImageInfo, raw_write: bool) -> bool:
         def on_tool_progress(pct: int | None, line: str) -> None:
             self._emit(line or "Flashing...")
 
-        if info.format.is_rk_format:
-            return self._tool.upgrade_firmware(info.path, progress_callback=on_tool_progress)
-        if info.format == ImageFormat.RAW:
+        if raw_write:
             return self._tool.write_image(info.path, progress_callback=on_tool_progress)
-        # unknown: try UF first, fallback WL
-        if self._tool.upgrade_firmware(info.path, progress_callback=on_tool_progress):
-            return True
-        return self._tool.write_image(info.path, progress_callback=on_tool_progress)
+        return self._tool.upgrade_firmware(info.path, progress_callback=on_tool_progress)

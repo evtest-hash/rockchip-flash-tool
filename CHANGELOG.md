@@ -22,6 +22,9 @@
 - The status bar is taller, and its text is larger, in body colour, and aligned
   with the panels above.
 - The startup status reads `Ready` instead of naming an internal tool.
+- An image that is neither an RK package nor a recognisable disk image is
+  written straight out with `WL` instead of first attempting `UF`, which could
+  only ever fail, and is reset afterwards like any other raw write.
 
 ### Fixed
 
