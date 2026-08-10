@@ -159,14 +159,27 @@ class UpgradeTool:
             text = osc_re.sub("", text)
             return ansi_re.sub("", text).replace("\x00", "").strip()
 
-        # Windows: use a PowerShell file relay to avoid pipe-buffered flush-at-end behavior.
+        # The POSIX branch below gets its PTY from the stdlib. Windows has no pty
+        # module, so it comes from elsewhere -- in three tiers, each losing only
+        # progress fidelity, never the ability to flash:
+        #   1. pywinpty (ConPTY/WinPTY): a real PTY, so the tool leaves stdout
+        #      unbuffered and \r progress arrives live. Measured on Windows 10 as
+        #      the tier that actually runs.
+        #   2. PowerShell relay: for when pywinpty cannot be imported or spawned.
+        #      Writes to a file this side tails, dodging pipe buffering.
+        #   3. Raw pipe: last resort if even PowerShell will not start. Output can
+        #      arrive in one burst at the end, but the flash still completes.
+        #
+        # None is the "this tier is unavailable" signal. A non-zero exit code is
+        # the *command's* result, not the channel's: retrying on it re-ran a whole
+        # UF against the board, up to three times, on every genuine failure.
         if os.name == "nt":
             conpty_result = self._run_windows_conpty(cmd, timeout, progress_callback, normalize_line)
-            if conpty_result is not None and conpty_result.returncode == 0:
+            if conpty_result is not None:
                 return conpty_result
 
             ps_result = self._run_windows_file_relay(cmd, timeout, progress_callback, normalize_line)
-            if ps_result is not None and ps_result.returncode == 0:
+            if ps_result is not None:
                 return ps_result
 
             proc = subprocess.Popen(
