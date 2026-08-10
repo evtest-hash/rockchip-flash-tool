@@ -156,7 +156,9 @@ def install_elevated(timeout_ms: int = 600_000) -> None:
             raise DriverPackageError("Driver installation cancelled.")
         raise DriverPackageError(f"Failed to request administrator privileges (0x{err:08X}).")
 
-    code = wintypes.DWORD(EXIT_INSTALL_FAILED)
+    # Read only after GetExitCodeProcess has filled it in; both paths that skip
+    # that call raise instead of falling through, so the initial value is inert.
+    code = wintypes.DWORD()
     try:
         if kernel32.WaitForSingleObject(sei.hProcess, timeout_ms) != _WAIT_OBJECT_0:
             kernel32.TerminateProcess(sei.hProcess, 1)
