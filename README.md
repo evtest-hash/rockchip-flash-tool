@@ -1,7 +1,7 @@
 # Rockchip Flash Tool
 
 [![Build](https://github.com/evtest-hash/rockchip-flash-tool/actions/workflows/build-release.yml/badge.svg)](https://github.com/evtest-hash/rockchip-flash-tool/actions/workflows/build-release.yml)
-[![Release](https://img.shields.io/github/v/release/evtest-hash/rockchip-flash-tool)](https://github.com/evtest-hash/rockchip-flash-tool/releases/latest)
+[![Release](https://img.shields.io/github/v/release/evtest-hash/rockchip-flash-tool)](../../releases/latest)
 ![Platforms](https://img.shields.io/badge/platforms-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)
 
 Flash a Rockchip board in two steps: choose a firmware image, click **Start Flash**.
@@ -18,12 +18,12 @@ loader it needs, and how the image has to be written.
 
 | Platform | File | Notes |
 |---|---|---|
-| macOS 13+ | [Rockchip-Flash-Tool-macOS-universal.dmg](https://github.com/evtest-hash/rockchip-flash-tool/releases/latest/download/Rockchip-Flash-Tool-macOS-universal.dmg) | Universal — Apple silicon and Intel |
-| Windows 10/11 | [Rockchip-Flash-Tool-windows-x64.zip](https://github.com/evtest-hash/rockchip-flash-tool/releases/latest/download/Rockchip-Flash-Tool-windows-x64.zip) | Prompts to install the Rockchip USB driver on first run |
-| Linux x86_64 | [Rockchip-Flash-Tool-linux-x86_64.AppImage](https://github.com/evtest-hash/rockchip-flash-tool/releases/latest/download/Rockchip-Flash-Tool-linux-x86_64.AppImage) | Needs FUSE2, see below |
+| macOS 13+ | [Rockchip-Flash-Tool-macOS-universal.dmg](../../releases/latest/download/Rockchip-Flash-Tool-macOS-universal.dmg) | Universal — Apple silicon and Intel |
+| Windows 10/11 | [Rockchip-Flash-Tool-windows-x64.zip](../../releases/latest/download/Rockchip-Flash-Tool-windows-x64.zip) | Prompts to install the Rockchip USB driver on first run |
+| Linux x86_64 | [Rockchip-Flash-Tool-linux-x86_64.AppImage](../../releases/latest/download/Rockchip-Flash-Tool-linux-x86_64.AppImage) | Needs FUSE2, see below |
 
 Every release is built and smoke-tested on all three operating systems before it
-is published. [All releases →](https://github.com/evtest-hash/rockchip-flash-tool/releases)
+is published. [All releases →](../../releases)
 
 ## Supported chips
 

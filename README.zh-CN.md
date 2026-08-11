@@ -1,7 +1,7 @@
 # Rockchip Flash Tool
 
 [![Build](https://github.com/evtest-hash/rockchip-flash-tool/actions/workflows/build-release.yml/badge.svg)](https://github.com/evtest-hash/rockchip-flash-tool/actions/workflows/build-release.yml)
-[![Release](https://img.shields.io/github/v/release/evtest-hash/rockchip-flash-tool)](https://github.com/evtest-hash/rockchip-flash-tool/releases/latest)
+[![Release](https://img.shields.io/github/v/release/evtest-hash/rockchip-flash-tool)](../../releases/latest)
 ![Platforms](https://img.shields.io/badge/platforms-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)
 
 选好固件，点 **Start Flash**，两步烧完一块 Rockchip 板子。
@@ -17,12 +17,12 @@
 
 | 平台 | 文件 | 说明 |
 |---|---|---|
-| macOS 13+ | [Rockchip-Flash-Tool-macOS-universal.dmg](https://github.com/evtest-hash/rockchip-flash-tool/releases/latest/download/Rockchip-Flash-Tool-macOS-universal.dmg) | 通用版，Apple 芯片和 Intel 都能跑 |
-| Windows 10/11 | [Rockchip-Flash-Tool-windows-x64.zip](https://github.com/evtest-hash/rockchip-flash-tool/releases/latest/download/Rockchip-Flash-Tool-windows-x64.zip) | 首次运行会询问是否安装 Rockchip USB 驱动 |
-| Linux x86_64 | [Rockchip-Flash-Tool-linux-x86_64.AppImage](https://github.com/evtest-hash/rockchip-flash-tool/releases/latest/download/Rockchip-Flash-Tool-linux-x86_64.AppImage) | 需要 FUSE2，见下文 |
+| macOS 13+ | [Rockchip-Flash-Tool-macOS-universal.dmg](../../releases/latest/download/Rockchip-Flash-Tool-macOS-universal.dmg) | 通用版，Apple 芯片和 Intel 都能跑 |
+| Windows 10/11 | [Rockchip-Flash-Tool-windows-x64.zip](../../releases/latest/download/Rockchip-Flash-Tool-windows-x64.zip) | 首次运行会询问是否安装 Rockchip USB 驱动 |
+| Linux x86_64 | [Rockchip-Flash-Tool-linux-x86_64.AppImage](../../releases/latest/download/Rockchip-Flash-Tool-linux-x86_64.AppImage) | 需要 FUSE2，见下文 |
 
 每个版本发布前，都会在三个平台上分别构建、各自跑一遍冒烟测试。
-[全部版本 →](https://github.com/evtest-hash/rockchip-flash-tool/releases)
+[全部版本 →](../../releases)
 
 ## 支持的芯片
 
