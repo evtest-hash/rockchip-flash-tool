@@ -16,11 +16,14 @@ _PID_TO_CHIP: dict[int, str] = {
     0x350A: "RK3568",
     0x350B: "RK3588",
     0x350C: "RK3562",
+    # xrock puts RK3562 at 0x350D; both are mapped so either reading works.
+    0x350D: "RK3562",
     0x350E: "RK3576",
     0x350F: "RK3506",
     0x330C: "RK3399",
-    0x330D: "RK3326",
+    0x330D: "PX30",
     0x330A: "RK3368",
+    0x330E: "RK3308",
     0x330B: "RK3366",
     0x320A: "RK3288",
     0x320B: "RK3229",
@@ -33,7 +36,7 @@ _PID_TO_CHIP: dict[int, str] = {
     0x300B: "RK3168",
     0x301A: "RK3036",
     0x180A: "RK1808",
-    0x110C: "RV1126",
+    0x110C: "RV1106",
     0x110B: "RV1109",
 }
 

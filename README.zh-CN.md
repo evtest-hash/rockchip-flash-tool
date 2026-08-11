@@ -24,6 +24,13 @@
 每个版本发布前，都会在三个平台上分别构建、各自跑一遍冒烟测试。
 [全部版本 →](https://github.com/evtest-hash/rockchip-flash-tool/releases)
 
+## 支持的芯片
+
+按 USB PID 识别，并内置了 Maskrom 模式所需的引导加载器：
+
+PX30, RK1808, RK3036, RK3126, RK3128, RK3188, RK3229, RK3288, RK3308, RK3328,
+RK3366, RK3368, RK3399, RK3506, RK3562, RK3568, RK3576, RK3588, RV1106, RV1109
+
 ## 安装说明
 
 ### macOS：提示"身份不明开发者/无法验证开发者"

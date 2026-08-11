@@ -25,6 +25,13 @@ loader it needs, and how the image has to be written.
 Every release is built and smoke-tested on all three operating systems before it
 is published. [All releases →](https://github.com/evtest-hash/rockchip-flash-tool/releases)
 
+## Supported chips
+
+Identified by USB PID, with a bootloader bundled for flashing from Maskrom mode:
+
+PX30, RK1808, RK3036, RK3126, RK3128, RK3188, RK3229, RK3288, RK3308, RK3328,
+RK3366, RK3368, RK3399, RK3506, RK3562, RK3568, RK3576, RK3588, RV1106, RV1109
+
 ## Installation notes
 
 ### macOS: "Developer Cannot Be Verified"
