@@ -11,6 +11,8 @@
   `rockchip_flash_tool.__version__` and the dependencies from `requirements.txt`.
 - `THIRD_PARTY.md` recording the origin and version of every vendored Rockchip
   binary.
+- Apache-2.0 licence. `THIRD_PARTY.md` also records the Qt runtime's LGPL-3.0
+  terms and reproduces Rockchip's in `vendor/rkbin/LICENSE`.
 
 ### Changed
 
