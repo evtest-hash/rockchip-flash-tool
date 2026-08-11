@@ -10,7 +10,9 @@ DMG_NAME="${DMG_NAME:-Rockchip-Flash-Tool-macOS-universal.dmg}"
 ICON_PNG="${ICON_PNG:-assets/icon-1024.png}"
 ICON_ICNS="${ICON_ICNS:-build/icons/icon.icns}"
 TARGET_ARCH="${TARGET_ARCH:-universal2}"
-DEPLOY_TARGET="${DEPLOY_TARGET:-10.15}"
+# The bundled Qt libraries carry minos 13.0, so anything lower is a fiction:
+# the app would install on an older macOS and fail to load QtCore.
+DEPLOY_TARGET="${DEPLOY_TARGET:-13.0}"
 VENV_DIR="${VENV_DIR:-}"
 PYTHON_BIN="${PYTHON_BIN:-}"
 

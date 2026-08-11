@@ -17,8 +17,8 @@
 
 | 平台 | 文件 | 说明 |
 |---|---|---|
-| macOS 11+ | [Rockchip-Flash-Tool-macOS-universal.dmg](https://github.com/evtest-hash/rockchip-flash-tool/releases/latest/download/Rockchip-Flash-Tool-macOS-universal.dmg) | 通用版，Apple 芯片和 Intel 都能跑 |
-| Windows 10/11 | [Rockchip-Flash-Tool-windows-x64.zip](https://github.com/evtest-hash/rockchip-flash-tool/releases/latest/download/Rockchip-Flash-Tool-windows-x64.zip) | 首次运行会自动装 Rockchip USB 驱动 |
+| macOS 13+ | [Rockchip-Flash-Tool-macOS-universal.dmg](https://github.com/evtest-hash/rockchip-flash-tool/releases/latest/download/Rockchip-Flash-Tool-macOS-universal.dmg) | 通用版，Apple 芯片和 Intel 都能跑 |
+| Windows 10/11 | [Rockchip-Flash-Tool-windows-x64.zip](https://github.com/evtest-hash/rockchip-flash-tool/releases/latest/download/Rockchip-Flash-Tool-windows-x64.zip) | 首次运行会询问是否安装 Rockchip USB 驱动 |
 | Linux x86_64 | [Rockchip-Flash-Tool-linux-x86_64.AppImage](https://github.com/evtest-hash/rockchip-flash-tool/releases/latest/download/Rockchip-Flash-Tool-linux-x86_64.AppImage) | 需要 FUSE2，见下文 |
 
 每个版本发布前，都会在三个平台上分别构建、各自跑一遍冒烟测试。
