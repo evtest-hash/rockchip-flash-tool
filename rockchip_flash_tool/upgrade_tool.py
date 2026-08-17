@@ -581,11 +581,12 @@ class UpgradeTool:
             raise UpgradeToolError(f"Loader not found: {loader}")
         out = self._run("DB", str(loader), timeout=120)
         text = (out.stdout or "") + (out.stderr or "")
-        if self._ok(text, "download boot ok", "download boot success") or out.returncode == 0:
-            return True
-        time.sleep(1)
-        verify = self._run("LD", timeout=10, pin=False)
-        return "Loader" in ((verify.stdout or "") + (verify.stderr or ""))
+        # No second opinion from LD: it cannot give one. A board running its spl
+        # loader still lists as Mode=Maskrom, so a successful DB reads as a
+        # failure, and the listing covers every board, so another one sitting in
+        # Loader reads as a success for this one. DB saying neither "ok" nor
+        # exit 0 is the strongest signal available.
+        return self._ok(text, "download boot ok", "download boot success") or out.returncode == 0
 
     def upgrade_firmware(self, firmware_path: str | Path, progress_callback: Callable[[int | None, str], None] | None = None) -> bool:
         p = Path(firmware_path)
