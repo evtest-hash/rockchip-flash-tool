@@ -180,6 +180,14 @@ class MainWindow(QMainWindow):
         self._status_timer.timeout.connect(self._restore_status)
         self._set_status("Ready")
 
+        # Fusion, unlike the macOS style, puts buttons in the tab chain, so
+        # activating the window handed focus to Refresh -- the first one built --
+        # and the sheet's :focus rule ringed it, pointing the eye at a secondary
+        # control every time the app was opened. Park focus here instead; Tab
+        # still reaches everything.
+        central.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        central.setFocus()
+
         # Last, because it settles the flash button, which is built above.
         self._render_devices([])
 
