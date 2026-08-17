@@ -184,6 +184,12 @@ jobs:
             echo "::error::Qt platform plugin failed to load"
             exit 1
           fi
+          # upgrade_tool hardcodes its work dir as ~/upgrade_tool; launching the
+          # app must not create it in the real home (the wrapper redirects HOME).
+          if [[ -d "$HOME/upgrade_tool" ]]; then
+            echo "::error::app launch created $HOME/upgrade_tool"
+            exit 1
+          fi
 
       - name: Run bundled upgrade_tool
         run: |
@@ -278,6 +284,11 @@ jobs:
           }
           Get-Content launch.out, launch.err -ErrorAction SilentlyContinue
           if ($p.ExitCode -ne 0) { throw "app exited with $($p.ExitCode)" }
+          # upgrade_tool hardcodes its work dir as ~/upgrade_tool; launching the
+          # app must not create it in the real home (the wrapper redirects HOME).
+          if (Test-Path "$env:USERPROFILE\upgrade_tool") {
+            throw "app launch created $env:USERPROFILE\upgrade_tool"
+          }
 
       - name: Run bundled upgrade_tool
         shell: pwsh

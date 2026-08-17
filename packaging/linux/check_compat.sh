@@ -266,6 +266,14 @@ run_launch_check \
   "$TIMEOUT_BIN" "${RUN_TIMEOUT_SECONDS}s" \
   xvfb-run -a env APPIMAGE_EXTRACT_AND_RUN=1 ./app-under-test.AppImage
 
+# The app must not create ~/upgrade_tool in the container's real home; the
+# wrapper redirects the tool's HOME to a private temp dir. (The direct
+# "Run bundled upgrade_tool" invocations that bypass the wrapper live in the
+# macos/windows workflows, not here.)
+if [[ -d "$HOME/upgrade_tool" ]]; then
+  fail "upgrade_tool leaked into home" "app launch created $HOME/upgrade_tool"
+fi
+
 popd >/dev/null
 
 pass

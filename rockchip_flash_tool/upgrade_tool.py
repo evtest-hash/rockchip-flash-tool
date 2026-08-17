@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import atexit
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 import time
@@ -104,6 +106,17 @@ class UpgradeTool:
         self._tool = find_upgrade_tool(tool_path)
         self._cwd = self._tool.parent
         self._device_id: str | None = None
+        # upgrade_tool hardcodes its work directory as ~/upgrade_tool (built
+        # from $HOME on POSIX, %USERPROFILE% on Windows) and recreates it on
+        # every run; there is no flag to turn that off, and config only moves
+        # the log subdirectory, never the folder itself. Redirect the child's
+        # home to a private temp dir so the user's real home stays clean, and
+        # drop the sandbox at exit.
+        home_sandbox = tempfile.mkdtemp(prefix="rockchip_upgrade_tool_home_")
+        self._tool_env: dict[str, str] = os.environ.copy()
+        self._tool_env["HOME"] = home_sandbox
+        self._tool_env["USERPROFILE"] = home_sandbox
+        atexit.register(shutil.rmtree, home_sandbox, True)
         self._ensure_windows_stdout_nobuffer()
 
     @property
@@ -175,6 +188,7 @@ class UpgradeTool:
                 text=True,
                 timeout=timeout,
                 cwd=self._cwd,
+                env=self._tool_env,
                 **no_console,
             )
 
@@ -221,6 +235,7 @@ class UpgradeTool:
                 stderr=subprocess.STDOUT,
                 cwd=self._cwd,
                 bufsize=0,
+                env=self._tool_env,
                 **no_console,
             )
             if proc.stdout is None:
@@ -284,6 +299,7 @@ class UpgradeTool:
             stderr=slave_fd,
             cwd=self._cwd,
             close_fds=True,
+            env=self._tool_env,
             **no_console,
         )
         os.close(slave_fd)
@@ -345,7 +361,7 @@ class UpgradeTool:
 
         cmdline = subprocess.list2cmdline(cmd)
         try:
-            proc = PtyProcess.spawn(cmdline, cwd=str(self._cwd))
+            proc = PtyProcess.spawn(cmdline, cwd=str(self._cwd), env=self._tool_env)
         except Exception as e:  # noqa: BLE001
             return None
 
@@ -435,6 +451,7 @@ class UpgradeTool:
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 cwd=self._cwd,
+                env=self._tool_env,
                 **no_console,
             )
         except Exception as e:  # noqa: BLE001
