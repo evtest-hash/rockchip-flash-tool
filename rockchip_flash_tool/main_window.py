@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QPushButton,
-    QStatusBar,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -83,9 +83,9 @@ class MainWindow(QMainWindow):
 
     def _setup_ui(self) -> None:
         self.setWindowTitle(f"{__app_name__} v{__version__}")
-        # 397 = 371 plus the caption row the device panel gained, which also
-        # lines it up with the firmware panel below.
-        self.setFixedSize(860, 397)
+        # The device panel gained a caption row (+26) and the separate status
+        # bar went away, its text moving up beside the action button (-32).
+        self.setFixedSize(860, 365)
         self.setAcceptDrops(True)
         self.setStyleSheet(self._theme.qss)
         QGuiApplication.styleHints().colorSchemeChanged.connect(self._apply_theme)
@@ -159,25 +159,21 @@ class MainWindow(QMainWindow):
         flayout.addWidget(self._lbl_fw_info)
         root.addWidget(fw_group)
 
-        # Actions
+        # One strip, not two: the status used to sit in a QStatusBar of its own
+        # below the action row, so pressing the button on the right and reading
+        # what happened on the left were separate places to look, with an empty
+        # row between them.
         actions = QHBoxLayout()
-        actions.addStretch()
+        self._lbl_status = QLabel()
+        self._lbl_status.setProperty("class", "status")
+        # Ignored, so a long tool line clips instead of pushing the button off.
+        self._lbl_status.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         self._btn_flash = QPushButton("Start Flash")
         self._btn_flash.setProperty("class", "primary")
         self._btn_flash.clicked.connect(self._on_flash)
+        actions.addWidget(self._lbl_status, 1)
         actions.addWidget(self._btn_flash)
         root.addLayout(actions)
-
-        # The bar carries a label rather than using showMessage(): the message
-        # text cannot be indented to line up with the panels (neither
-        # contentsMargins nor a QSS padding moves it off 7px), and an expiring
-        # timed message blanks the bar instead of restoring the previous one.
-        self._status = QStatusBar()
-        self._status.setSizeGripEnabled(False)
-        self._lbl_status = QLabel()
-        self._lbl_status.setProperty("class", "status")
-        self._status.addWidget(self._lbl_status, 1)
-        self.setStatusBar(self._status)
 
         self._status_timer = QTimer(self)
         self._status_timer.setSingleShot(True)
@@ -202,18 +198,25 @@ class MainWindow(QMainWindow):
         self._timer.timeout.connect(self._poll_device)
         self._timer.start(3000)
 
+    def _show_status(self, text: str) -> None:
+        # upgrade_tool emits whatever length of line it likes, and the window is
+        # a fixed width shared with the button beside it.
+        metrics = self._lbl_status.fontMetrics()
+        width = max(self._lbl_status.width(), 120)
+        self._lbl_status.setText(metrics.elidedText(text, Qt.TextElideMode.ElideRight, width))
+
     def _set_status(self, text: str, timeout: int = 0) -> None:
         """Show `text`; a positive `timeout` reverts to the standing status."""
         if timeout <= 0:
             self._status_idle = text
-        self._lbl_status.setText(text)
+        self._show_status(text)
         self._status_timer.stop()
         if timeout > 0:
             self._status_timer.start(timeout)
 
     @Slot()
     def _restore_status(self) -> None:
-        self._lbl_status.setText(self._status_idle)
+        self._show_status(self._status_idle)
 
     def _current_theme(self) -> Theme:
         scheme = QGuiApplication.styleHints().colorScheme()

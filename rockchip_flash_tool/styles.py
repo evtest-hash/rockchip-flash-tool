@@ -74,7 +74,7 @@ QLabel[class="status"] {
   color: $text;
   font-size: $font_status;
   /* Lands the text on the same vertical line as the panel content above. */
-  padding-left: 20px;
+  padding-left: 13px;
 }
 QLabel[class="caption"] {
   color: $text_muted;
@@ -158,14 +158,6 @@ QPushButton:disabled {
   background: $disabled;
   color: $text_disabled;
   border: 1px solid $disabled_border;
-}
-QStatusBar {
-  background: $window;
-  border-top: 1px solid $border;
-  min-height: 32px;
-}
-QStatusBar::item {
-  border: none;
 }
 """
 )
