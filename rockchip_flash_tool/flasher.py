@@ -7,7 +7,13 @@ from typing import Callable
 from rockchip_flash_tool import resources
 from rockchip_flash_tool.chip_db import find_loader
 from rockchip_flash_tool.image_format import ImageFormat, ImageInfo, detect_image_format
-from rockchip_flash_tool.upgrade_tool import DeviceInfo, DeviceNotFoundError, UpgradeTool, UpgradeToolError
+from rockchip_flash_tool.upgrade_tool import (
+    AmbiguousDeviceError,
+    DeviceInfo,
+    DeviceNotFoundError,
+    UpgradeTool,
+    UpgradeToolError,
+)
 
 ProgressCallback = Callable[[str], None]
 
@@ -34,10 +40,18 @@ class Flasher:
         if self._progress_cb:
             self._progress_cb(message)
 
+    def list_devices(self) -> list[DeviceInfo]:
+        return self._tool.list_devices()
+
+    def select_device(self, device_id: str | None) -> None:
+        self._tool.select(device_id)
+
     def detect_device(self) -> DeviceInfo:
         self._emit("Scanning for Rockchip devices...")
         try:
             dev = self._tool.get_device()
+        except AmbiguousDeviceError as e:
+            raise FlashError(str(e), "Move one board to a different USB port, then refresh.")
         except DeviceNotFoundError as e:
             raise FlashError(str(e), "Please connect the board and enter Loader/Maskrom mode.")
         self._emit(f"Found {dev.chip_display} in {dev.mode} mode")

@@ -49,6 +49,10 @@ class DeviceNotFoundError(UpgradeToolError):
     pass
 
 
+class AmbiguousDeviceError(UpgradeToolError):
+    pass
+
+
 class ToolNotFoundError(UpgradeToolError):
     pass
 
@@ -71,6 +75,13 @@ class DeviceInfo:
     def chip_display(self) -> str:
         return self.chip_model or f"Unknown (PID=0x{self.pid:04X})"
 
+    @property
+    def key(self) -> str:
+        # What `-s` matches on. LD prints it as %x and -s parses base 16, so the
+        # tool's own text round-trips; its width is platform-dependent, so never
+        # pad it.
+        return f"{self.location_id:x}"
+
 
 def find_upgrade_tool(custom_path: str | None = None) -> Path:
     if custom_path:
@@ -92,11 +103,18 @@ class UpgradeTool:
     def __init__(self, tool_path: str | None = None):
         self._tool = find_upgrade_tool(tool_path)
         self._cwd = self._tool.parent
+        self._device_id: str | None = None
         self._ensure_windows_stdout_nobuffer()
 
     @property
     def tool_path(self) -> Path:
         return self._tool
+
+    def select(self, device_id: str | None) -> None:
+        # Pin later commands to one board by DeviceInfo.key. None falls back to
+        # whichever the tool enumerates first, which reorders across a
+        # re-enumeration.
+        self._device_id = device_id
 
     def _ensure_windows_stdout_nobuffer(self) -> None:
         if os.name != "nt":
@@ -142,8 +160,13 @@ class UpgradeTool:
         *args: str,
         timeout: int = 60,
         progress_callback: Callable[[int | None, str], None] | None = None,
+        pin: bool = True,
     ) -> subprocess.CompletedProcess:
-        cmd = [str(self._tool)] + list(args)
+        # The selector goes before the command: the tool reads "-s" at argv[1]
+        # and its value at argv[2], then shifts argv by two. Anywhere else it is
+        # just a command argument.
+        selector = ["-s", self._device_id] if pin and self._device_id else []
+        cmd = [str(self._tool)] + selector + list(args)
         no_console = self._windows_no_console_kwargs()
         if progress_callback is None:
             return subprocess.run(
@@ -503,14 +526,26 @@ class UpgradeTool:
             raise DriverInstallError(str(e)) from e
 
     def list_devices(self) -> list[DeviceInfo]:
-        out = self._run("LD")
+        # Unpinned: LD runs before device selection and always lists everything.
+        out = self._run("LD", pin=False)
         return self._parse_device_list((out.stdout or "") + (out.stderr or ""))
 
     def get_device(self) -> DeviceInfo:
         devices = self.list_devices()
         if not devices:
             raise DeviceNotFoundError("No Rockchip device detected.")
-        return devices[0]
+        if self._device_id is None:
+            return devices[0]
+        matches = [dev for dev in devices if dev.key == self._device_id]
+        if not matches:
+            raise DeviceNotFoundError(f"Device @{self._device_id} is no longer connected.")
+        # LocationID masks every USB hub level to 4 bits, so distinct port paths
+        # can alias. `-s` answers that by taking the first match; refuse instead.
+        if len(matches) > 1:
+            raise AmbiguousDeviceError(
+                f"{len(matches)} devices report LocationID {self._device_id}."
+            )
+        return matches[0]
 
     @staticmethod
     def _parse_device_list(output: str) -> list[DeviceInfo]:
@@ -549,7 +584,7 @@ class UpgradeTool:
         if self._ok(text, "download boot ok", "download boot success") or out.returncode == 0:
             return True
         time.sleep(1)
-        verify = self._run("LD", timeout=10)
+        verify = self._run("LD", timeout=10, pin=False)
         return "Loader" in ((verify.stdout or "") + (verify.stderr or ""))
 
     def upgrade_firmware(self, firmware_path: str | Path, progress_callback: Callable[[int | None, str], None] | None = None) -> bool:

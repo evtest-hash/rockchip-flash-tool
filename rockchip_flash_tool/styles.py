@@ -117,6 +117,27 @@ QPushButton:pressed {
 QPushButton:focus {
   border: 1px solid $accent;
 }
+/* One chip per attached board. Selection is the accent, never the device
+   green: the dot means "a board is live", the fill means "this is the one we
+   will write to", and the two must not be read as the same signal. */
+/* The row holding them is a plain QWidget, which the rule at the top of this
+   sheet would otherwise paint in the window colour on top of the panel. */
+QWidget[class="bare"] {
+  background: transparent;
+}
+QPushButton[class="chip"] {
+  padding: 5px 14px;
+  border-radius: 13px;
+  font-weight: 600;
+}
+QPushButton[class="chip"]:checked {
+  background: $accent;
+  color: $on_accent;
+  border: 1px solid $accent_border;
+}
+QPushButton[class="chip"]:checked:hover {
+  background: $accent_hover;
+}
 QPushButton[class="primary"] {
   background: $accent;
   color: $on_accent;

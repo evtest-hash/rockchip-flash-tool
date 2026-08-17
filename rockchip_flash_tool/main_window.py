@@ -8,6 +8,7 @@ from pathlib import Path
 from PySide6.QtCore import QEvent, QSettings, QThread, QTimer, Signal, Slot, Qt
 from PySide6.QtGui import QDragEnterEvent, QDropEvent, QGuiApplication
 from PySide6.QtWidgets import (
+    QButtonGroup,
     QFileDialog,
     QFrame,
     QHBoxLayout,
@@ -25,7 +26,7 @@ from rockchip_flash_tool import __app_name__, __version__
 from rockchip_flash_tool.flasher import FlashError, Flasher
 from rockchip_flash_tool.image_format import detect_image_format
 from rockchip_flash_tool.styles import Theme, theme
-from rockchip_flash_tool.upgrade_tool import DriverInstallError, ToolNotFoundError
+from rockchip_flash_tool.upgrade_tool import DeviceInfo, DriverInstallError, ToolNotFoundError
 
 # The artifact smoke tests launch the app with an auto-quit timer. A modal
 # dialog would run its own event loop and ignore QApplication.quit(), hanging
@@ -66,6 +67,10 @@ class MainWindow(QMainWindow):
         # Kept so the dot can be repainted when the system flips light/dark.
         self._device_connected = False
         self._device_text = "No device connected"
+        # None, not [], so the first render of an empty list is not skipped.
+        self._device_shown: list[tuple[str, str]] | None = None
+        self._devices: list[DeviceInfo] = []
+        self._selected_key: str | None = None
         self._status_idle = "Ready"
         self._theme: Theme = self._current_theme()
 
@@ -78,9 +83,9 @@ class MainWindow(QMainWindow):
 
     def _setup_ui(self) -> None:
         self.setWindowTitle(f"{__app_name__} v{__version__}")
-        # 371 = the old 360 plus the 11px the taller status bar takes, so the
-        # content area above it keeps its original height.
-        self.setFixedSize(860, 371)
+        # 397 = 371 plus the caption row the device panel gained, which also
+        # lines it up with the firmware panel below.
+        self.setFixedSize(860, 397)
         self.setAcceptDrops(True)
         self.setStyleSheet(self._theme.qss)
         QGuiApplication.styleHints().colorSchemeChanged.connect(self._apply_theme)
@@ -101,14 +106,34 @@ class MainWindow(QMainWindow):
         dtitle.setProperty("class", "title")
         dlayout.addWidget(dtitle)
         drow = QHBoxLayout()
+        drow.setSpacing(8)
+        self._lbl_dot = QLabel("")
+        self._lbl_dot.setProperty("class", "device")
         self._lbl_device = QLabel("")
         self._lbl_device.setProperty("class", "device")
-        self._set_device_label(False, "No device connected")
+        # Swapped in for the label once there is more than one board, so the
+        # choice is on screen instead of behind a click.
+        self._chips = QWidget()
+        self._chips.setProperty("class", "bare")
+        self._chips_row = QHBoxLayout(self._chips)
+        self._chips_row.setContentsMargins(0, 0, 0, 0)
+        self._chips_row.setSpacing(6)
+        self._chip_group = QButtonGroup(self)
+        self._chip_group.idClicked.connect(self._choose_device_at)
+        self._chips.hide()
         self._btn_refresh = QPushButton("Refresh")
         self._btn_refresh.clicked.connect(self._on_refresh)
-        drow.addWidget(self._lbl_device, 1)
+        drow.addWidget(self._lbl_dot)
+        drow.addWidget(self._lbl_device)
+        drow.addWidget(self._chips)
+        drow.addStretch(1)
         drow.addWidget(self._btn_refresh)
         dlayout.addLayout(drow)
+        # Identity is on the row, state is here, so neither the label nor a chip
+        # has to carry a 16-digit serial.
+        self._lbl_dev_detail = QLabel("")
+        self._lbl_dev_detail.setProperty("class", "caption")
+        dlayout.addWidget(self._lbl_dev_detail)
         root.addWidget(device_group)
 
         # Firmware
@@ -159,6 +184,9 @@ class MainWindow(QMainWindow):
         self._status_timer.timeout.connect(self._restore_status)
         self._set_status("Ready")
 
+        # Last, because it settles the flash button, which is built above.
+        self._render_devices([])
+
     def _try_init_tool(self) -> None:
         try:
             self._flasher = Flasher()
@@ -167,7 +195,6 @@ class MainWindow(QMainWindow):
             self._poll_device()
         except ToolNotFoundError:
             self._tool_available = False
-            self._btn_flash.setEnabled(False)
             self._set_status("upgrade_tool not found")
 
     def _setup_polling(self) -> None:
@@ -200,7 +227,7 @@ class MainWindow(QMainWindow):
             return
         self._theme = new
         self.setStyleSheet(new.qss)
-        self._set_device_label(self._device_connected, self._device_text)
+        self._paint_dot()
 
     def changeEvent(self, event: QEvent) -> None:
         super().changeEvent(event)
@@ -209,11 +236,100 @@ class MainWindow(QMainWindow):
         if event.type() == QEvent.Type.PaletteChange:
             self._apply_theme()
 
-    def _set_device_label(self, connected: bool, text: str) -> None:
-        self._device_connected = connected
-        self._device_text = text
-        dot_color = self._theme.device_ok if connected else self._theme.device_off
-        self._lbl_device.setText(f'<span style="color:{dot_color};">●</span> {text}')
+    def _paint_dot(self) -> None:
+        self._device_connected = self._selected_key is not None
+        color = self._theme.device_ok if self._device_connected else self._theme.device_off
+        self._lbl_dot.setText(f'<span style="color:{color};">●</span>')
+
+    @staticmethod
+    def _chip_labels(devices: list[DeviceInfo]) -> list[str]:
+        # The port id is upgrade_tool's LocationID verbatim -- what LD prints,
+        # what -s takes, what its log records. It is a USB hub path, but the
+        # packing is lossy and differs per platform, so it is never reformatted.
+        return [f"{d.chip_display}  @{d.key}" for d in devices]
+
+    @staticmethod
+    def _device_line(dev: DeviceInfo | None) -> str:
+        if dev is None:
+            return "No device connected"
+        parts = ["Connected", dev.chip_display, dev.mode, f"@{dev.key}"]
+        if dev.serial_no:
+            parts.append(f"SN {dev.serial_no}")
+        return "  ·  ".join(parts)
+
+    @staticmethod
+    def _device_detail(dev: DeviceInfo | None) -> str:
+        if dev is None:
+            return "Mode: —   |   Port ID: —   |   Serial: —"
+        # Spelled out here even though the chip already carries it: the bare
+        # @1112 on a chip does not say what kind of number it is.
+        return f"Mode: {dev.mode}   |   Port ID: {dev.key}   |   Serial: {dev.serial_no or '—'}"
+
+    def _render_devices(self, devices: list[DeviceInfo]) -> None:
+        # Compare everything shown, chips and caption both, so a Maskrom->Loader
+        # switch refreshes the caption; and skip the work entirely when a poll
+        # brings no news.
+        shown = [(lbl, self._device_detail(d)) for lbl, d in zip(self._chip_labels(devices), devices)]
+        if shown == self._device_shown:
+            return
+        self._device_shown = shown
+        self._devices = devices
+
+        # Selection follows the key, never the position: boards change places.
+        keys = [d.key for d in devices]
+        if self._selected_key not in keys:
+            self._selected_key = keys[0] if keys else None
+
+        for button in self._chip_group.buttons():
+            self._chip_group.removeButton(button)
+            button.deleteLater()
+        while self._chips_row.count():
+            self._chips_row.takeAt(0)
+        for index, (label, _) in enumerate(shown):
+            chip = QPushButton(label)
+            chip.setProperty("class", "chip")
+            chip.setCheckable(True)
+            self._chip_group.addButton(chip, index)
+            self._chips_row.addWidget(chip)
+
+        self._repaint_device_row()
+        self._sync_controls()
+
+    def _repaint_device_row(self) -> None:
+        dev = self._selected_device()
+        many = len(self._devices) > 1
+        self._chips.setVisible(many)
+        self._lbl_device.setVisible(not many)
+        if not many:
+            self._device_text = self._device_line(dev)
+            self._lbl_device.setText(self._device_text)
+        else:
+            for index, board in enumerate(self._devices):
+                button = self._chip_group.button(index)
+                if button is not None:
+                    button.setChecked(board.key == self._selected_key)
+        self._lbl_dev_detail.setText(self._device_detail(dev))
+        self._paint_dot()
+
+    def _selected_device(self) -> DeviceInfo | None:
+        return next((d for d in self._devices if d.key == self._selected_key), None)
+
+    @Slot(int)
+    def _choose_device_at(self, index: int) -> None:
+        if 0 <= index < len(self._devices):
+            self._choose_device(self._devices[index].key)
+
+    def _choose_device(self, key: str) -> None:
+        self._selected_key = key
+        self._repaint_device_row()
+        self._sync_controls()
+
+    def _sync_controls(self, busy: bool = False) -> None:
+        ready = not busy and self._selected_key is not None
+        self._btn_browse.setEnabled(not busy)
+        self._btn_refresh.setEnabled(not busy)
+        self._chips.setEnabled(not busy)
+        self._btn_flash.setEnabled(ready and self._tool_available)
 
     def _fw_info_text(self, fmt: str, size: str) -> str:
         return f"Format: {fmt}  |  Size: {size}"
@@ -223,13 +339,12 @@ class MainWindow(QMainWindow):
         if not self._tool_available or (self._worker and self._worker.isRunning()):
             return
         try:
-            dev = self._flasher.detect_device()
-            parts = ["Connected", dev.chip_display, dev.mode]
-            if dev.serial_no:
-                parts.append(f"SN {dev.serial_no}")
-            self._set_device_label(True, "  ·  ".join(parts))
-        except Exception:  # noqa: BLE001
-            self._set_device_label(False, "No device connected")
+            devices = self._flasher.list_devices()
+        except Exception as e:  # noqa: BLE001
+            # Say so: a failing scan otherwise looks like an unplugged board.
+            devices = []
+            self._set_status(f"Device scan failed: {e}", 5000)
+        self._render_devices(devices)
 
     @Slot()
     def _on_refresh(self) -> None:
@@ -301,10 +416,15 @@ class MainWindow(QMainWindow):
         if not Path(fw).exists():
             QMessageBox.warning(self, "File Not Found", fw)
             return
+        if self._selected_key is None:
+            QMessageBox.warning(self, "No Device", "Please select a device first.")
+            return
 
-        self._btn_flash.setEnabled(False)
-        self._btn_browse.setEnabled(False)
-        self._btn_refresh.setEnabled(False)
+        # Pins DB, UF/WL and RD to this board, including across the
+        # Maskrom->Loader switch in the middle.
+        self._flasher.select_device(self._selected_key)
+
+        self._sync_controls(busy=True)
         self._set_status("Starting flash...")
 
         self._worker = FlashWorker(self._flasher, fw)
@@ -383,9 +503,7 @@ class MainWindow(QMainWindow):
         # the poll timer fires. Keep the worker referenced -- releasing it here
         # would destroy a QThread whose thread has not returned from run() yet.
         self._flasher.set_progress_callback(None)
-        self._btn_flash.setEnabled(True)
-        self._btn_browse.setEnabled(True)
-        self._btn_refresh.setEnabled(True)
+        self._sync_controls()
         # Flash progress is shown without a timeout, which makes each line the
         # standing status; put that back to Ready so the result message below
         # expires into it rather than into a stale progress line.
