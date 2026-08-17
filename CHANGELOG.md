@@ -1,5 +1,53 @@
 # Changelog
 
+## 1.2.0
+
+### Added
+
+- With several boards attached, which one gets written is now a choice. The
+  device panel lists each attached board as a chip, and every command the flash
+  issues is pinned to the selected one. A single board looks exactly as it did
+  before — there is nothing to choose between.
+- The device panel shows the selected board's mode, port id and serial.
+
+### Changed
+
+- A board is identified by its `LocationID`, which is the USB port path it is
+  plugged into and the only identifier a board in Maskrom exposes. Moving a
+  board to a different port therefore changes how it is listed, and two boards
+  swapped between the same two ports are indistinguishable.
+- Flashing refuses to start when two attached boards report the same
+  `LocationID`. Distinct port paths can alias, because each hub level is masked
+  to four bits, and `upgrade_tool` would answer an ambiguous selector by taking
+  whichever board it enumerated first.
+- The status text sits beside the flash button; the separate status bar is gone.
+  Pressing on the right and reading the result on the left were two places to
+  look, with an empty row between them.
+- The app icon is the full-bleed Rockchip master.
+
+### Fixed
+
+- Whichever board `upgrade_tool` happened to enumerate first was the one that
+  got written. That order is not stable — it was observed swapping after a
+  bootloader download — so with more than one board attached the target could
+  change with nobody touching anything.
+- Bootloader download no longer asks the device listing for a second opinion
+  when `upgrade_tool` reports neither success nor a zero exit. That check could
+  not be right either way: a board running its spl loader still lists as
+  Maskrom, so a download that worked read as a failure, and the listing was not
+  restricted to the board being written, so another board sitting in Loader
+  answered on behalf of the one that failed.
+- The README's download links resolve against whichever repository the file is
+  read from. They named one outright, so the same README read from the
+  organisation's fork sent people to a personal account for the download.
+- The window no longer opens with a focus ring around **Refresh**. Fusion, unlike
+  the macOS style, puts buttons in the tab chain, so the first one built took
+  focus as soon as the window became active.
+- `upgrade_tool` no longer drops its `~/upgrade_tool` work directory into the
+  user's home. The wrapper points the tool's `HOME` (and `USERPROFILE`) at a
+  private temp directory for the life of the app, so launching it leaves no
+  folder behind.
+
 ## 1.1.0
 
 ### Added
