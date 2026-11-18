@@ -33,6 +33,7 @@ python -m PyInstaller \
   --name "$APP_NAME" \
   --add-data "vendor/upgrade_tool/linux:vendor/upgrade_tool/linux" \
   --add-data "vendor/rkbin:vendor/rkbin" \
+  --add-data "rockchip_flash_tool/i18n:rockchip_flash_tool/i18n" \
   rockchip_flash_tool/__main__.py
 
 APPDIR="$ROOT_DIR/dist/AppDir"

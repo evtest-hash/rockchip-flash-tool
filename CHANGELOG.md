@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.0
+
+### Added
+
+- The interface can be shown in Simplified Chinese, following the system
+  language.
+
 ## 1.2.0
 
 ### Added

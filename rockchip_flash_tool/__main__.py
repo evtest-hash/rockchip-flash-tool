@@ -14,6 +14,7 @@ from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 
 from rockchip_flash_tool import __app_name__, resources
+from rockchip_flash_tool.i18n import apply_language, resolve_language
 from rockchip_flash_tool.main_window import MainWindow
 
 
@@ -21,6 +22,7 @@ def main() -> None:
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
     app.setApplicationName(__app_name__)
+    apply_language(app, resolve_language())
     icon_path = resources.icon_path() if sys.platform.startswith("win") else None
     if icon_path:
         app.setWindowIcon(QIcon(str(icon_path)))

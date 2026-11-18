@@ -58,6 +58,7 @@ python -m PyInstaller \
   --icon "$ICON_ICNS" \
   --add-data "vendor/upgrade_tool/darwin:vendor/upgrade_tool/darwin" \
   --add-data "vendor/rkbin:vendor/rkbin" \
+  --add-data "rockchip_flash_tool/i18n:rockchip_flash_tool/i18n" \
   rockchip_flash_tool/__main__.py
 
 STAGE_DIR="dist/dmg-stage"

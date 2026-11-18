@@ -17,6 +17,9 @@ rockchip-flash-tool = "rockchip_flash_tool.__main__:main"
 [tool.setuptools]
 packages = ["rockchip_flash_tool"]
 
+[tool.setuptools.package-data]
+rockchip_flash_tool = ["i18n/*.qm", "i18n/*.ts"]
+
 [tool.setuptools.dynamic]
 # Single sources of truth: the version lives in the package, the runtime
 # dependencies live in requirements.txt (which the packaging scripts install

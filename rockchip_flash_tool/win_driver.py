@@ -17,13 +17,14 @@ ELEVATED_FLAG = "--install-rockusb-driver"
 EXIT_OK = 0
 EXIT_BAD_ARGS = 0x0E03
 
-_EXIT_MESSAGES = {
-    EXIT_BAD_ARGS: "Internal error: invalid driver installation request.",
-}
-
 _DRIVER_ROOT = resources.windows_driver_dir()
 _ERROR_CANCELLED = 1223
 _WAIT_OBJECT_0 = 0
+
+
+# Qt is imported inside the two user-facing functions below, never at module
+# level: the elevated child imports this module before Qt is loaded and should
+# stay lightweight. Neither function is called in the child.
 
 
 class SHELLEXECUTEINFOW(ctypes.Structure):
@@ -82,6 +83,10 @@ class DriverPackageError(Exception):
     pass
 
 
+class DriverPackageCancelled(DriverPackageError):
+    pass
+
+
 def _os_version() -> tuple[int, int]:
     # RtlGetVersion is not subject to the manifest-based version lie of GetVersionEx.
     info = OSVERSIONINFOEXW()
@@ -98,9 +103,16 @@ def _native_arch() -> str:
 
 def resolve_inf_path() -> Path:
     """Pick the rockusb.inf matching the running OS. No implicit default."""
+    from PySide6.QtCore import QCoreApplication
+
     arch = _native_arch()
     if arch not in ("x64", "x86"):
-        raise DriverPackageError(f"Unsupported processor architecture: {arch}")
+        raise DriverPackageError(
+            QCoreApplication.translate(
+                "Driver", "Unsupported processor architecture: %(arch)s"
+            )
+            % {"arch": arch}
+        )
 
     major, minor = _os_version()
     if major >= 10:
@@ -108,16 +120,26 @@ def resolve_inf_path() -> Path:
     else:
         osdir = {(6, 1): "win7", (6, 2): "win8", (6, 3): "win81"}.get((major, minor), "")
     if not osdir:
-        raise DriverPackageError(f"Unsupported Windows version: {major}.{minor}")
+        raise DriverPackageError(
+            QCoreApplication.translate(
+                "Driver", "Unsupported Windows version: %(major)s.%(minor)s"
+            )
+            % {"major": major, "minor": minor}
+        )
 
     path = _DRIVER_ROOT / arch / osdir / "rockusb.inf"
     if not path.is_file():
-        raise DriverPackageError(f"Driver package incomplete: {path}")
+        raise DriverPackageError(
+            QCoreApplication.translate("Driver", "Driver package incomplete: %(path)s")
+            % {"path": path}
+        )
     return path
 
 
 def install_elevated(timeout_ms: int = 600_000) -> None:
     """Relaunch this executable elevated to install the driver. Raises on failure."""
+    from PySide6.QtCore import QCoreApplication
+
     inf = resolve_inf_path()
 
     if getattr(sys, "frozen", False):
@@ -153,8 +175,15 @@ def install_elevated(timeout_ms: int = 600_000) -> None:
     if not shell32.ShellExecuteExW(ctypes.byref(sei)):
         err = ctypes.get_last_error()
         if err == _ERROR_CANCELLED:
-            raise DriverPackageError("Driver installation cancelled.")
-        raise DriverPackageError(f"Failed to request administrator privileges (0x{err:08X}).")
+            raise DriverPackageCancelled(
+                QCoreApplication.translate("Driver", "Driver installation cancelled.")
+            )
+        raise DriverPackageError(
+            QCoreApplication.translate(
+                "Driver", "Failed to request administrator privileges (0x%(code)08X)."
+            )
+            % {"code": err}
+        )
 
     # Read only after GetExitCodeProcess has filled it in; both paths that skip
     # that call raise instead of falling through, so the initial value is inert.
@@ -162,21 +191,30 @@ def install_elevated(timeout_ms: int = 600_000) -> None:
     try:
         if kernel32.WaitForSingleObject(sei.hProcess, timeout_ms) != _WAIT_OBJECT_0:
             kernel32.TerminateProcess(sei.hProcess, 1)
-            raise DriverPackageError("Driver installation timed out.")
+            raise DriverPackageError(
+                QCoreApplication.translate("Driver", "Driver installation timed out.")
+            )
         if not kernel32.GetExitCodeProcess(sei.hProcess, ctypes.byref(code)):
             raise DriverPackageError(
-                f"Could not read installer exit code (0x{ctypes.get_last_error():08X})."
+                QCoreApplication.translate(
+                    "Driver",
+                    "Could not read installer exit code (0x%(code)08X).",
+                )
+                % {"code": ctypes.get_last_error()}
             )
     finally:
         kernel32.CloseHandle(sei.hProcess)
 
     if code.value != EXIT_OK:
-        raise DriverPackageError(
-            _EXIT_MESSAGES.get(
-                code.value,
-                f"Windows rejected the driver installation (0x{code.value:08X}).",
+        if code.value == EXIT_BAD_ARGS:
+            message = QCoreApplication.translate(
+                "Driver", "Internal error: invalid driver installation request."
             )
-        )
+        else:
+            message = QCoreApplication.translate(
+                "Driver", "Windows rejected the driver installation (0x%(code)08X)."
+            ) % {"code": code.value}
+        raise DriverPackageError(message)
 
 
 def run_elevated_install(inf_arg: str) -> int:

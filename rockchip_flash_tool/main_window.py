@@ -24,9 +24,13 @@ from PySide6.QtWidgets import (
 
 from rockchip_flash_tool import __app_name__, __version__
 from rockchip_flash_tool.flasher import FlashError, Flasher
-from rockchip_flash_tool.image_format import detect_image_format
+from rockchip_flash_tool.image_format import ImageFormat, ImageInfo, detect_image_format
 from rockchip_flash_tool.styles import Theme, theme
-from rockchip_flash_tool.upgrade_tool import DeviceInfo, DriverInstallError, ToolNotFoundError
+from rockchip_flash_tool.upgrade_tool import (
+    DeviceInfo,
+    DriverInstallError,
+    ToolNotFoundError,
+)
 
 # The artifact smoke tests launch the app with an auto-quit timer. A modal
 # dialog would run its own event loop and ignore QApplication.quit(), hanging
@@ -49,12 +53,25 @@ class FlashWorker(QThread):
         self._flasher.set_progress_callback(self.progress.emit)
         try:
             ok = self._flasher.flash(self._image_path)
-            self.finished.emit(ok, "Flash completed successfully." if ok else "Flash failed.")
+            self.finished.emit(
+                ok,
+                self.tr("Flash completed successfully.")
+                if ok
+                else self.tr("Flash failed."),
+            )
         except FlashError as e:
-            msg = str(e) + (f"\n\nSuggestion:\n{e.suggestion}" if e.suggestion else "")
+            msg = str(e)
+            if e.suggestion:
+                msg += self.tr("\n\nSuggestion:\n%(suggestion)s") % {
+                    "suggestion": e.suggestion
+                }
             self.finished.emit(False, msg)
         except Exception as e:  # noqa: BLE001
-            self.finished.emit(False, f"Unexpected error: {e}\n\n{traceback.format_exc()}")
+            self.finished.emit(
+                False,
+                self.tr("Unexpected error: %(error)s\n\n%(traceback)s")
+                % {"error": e, "traceback": traceback.format_exc()},
+            )
 
 
 class MainWindow(QMainWindow):
@@ -64,14 +81,16 @@ class MainWindow(QMainWindow):
         self._worker: FlashWorker | None = None
         self._tool_available = False
         self._settings = QSettings(__app_name__, __app_name__)
+        self._fw_info: ImageInfo | None = None
+        self._fw_parse_error = False
         # Kept so the dot can be repainted when the system flips light/dark.
         self._device_connected = False
-        self._device_text = "No device connected"
+        self._device_text = self.tr("No device connected")
         # None, not [], so the first render of an empty list is not skipped.
         self._device_shown: list[tuple[str, str]] | None = None
         self._devices: list[DeviceInfo] = []
         self._selected_key: str | None = None
-        self._status_idle = "Ready"
+        self._status_idle = self.tr("Ready")
         self._theme: Theme = self._current_theme()
 
         self._setup_ui()
@@ -82,7 +101,6 @@ class MainWindow(QMainWindow):
             QTimer.singleShot(0, self._startup_driver_check)
 
     def _setup_ui(self) -> None:
-        self.setWindowTitle(f"{__app_name__} v{__version__}")
         # The device panel gained a caption row (+26) and the separate status
         # bar went away, its text moving up beside the action button (-32).
         self.setFixedSize(860, 365)
@@ -102,9 +120,9 @@ class MainWindow(QMainWindow):
         dlayout = QVBoxLayout(device_group)
         dlayout.setContentsMargins(12, 10, 12, 10)
         dlayout.setSpacing(8)
-        dtitle = QLabel("Device")
-        dtitle.setProperty("class", "title")
-        dlayout.addWidget(dtitle)
+        self._lbl_title_device = QLabel()
+        self._lbl_title_device.setProperty("class", "title")
+        dlayout.addWidget(self._lbl_title_device)
         drow = QHBoxLayout()
         drow.setSpacing(8)
         self._lbl_dot = QLabel("")
@@ -121,7 +139,7 @@ class MainWindow(QMainWindow):
         self._chip_group = QButtonGroup(self)
         self._chip_group.idClicked.connect(self._choose_device_at)
         self._chips.hide()
-        self._btn_refresh = QPushButton("Refresh")
+        self._btn_refresh = QPushButton()
         self._btn_refresh.clicked.connect(self._on_refresh)
         drow.addWidget(self._lbl_dot)
         drow.addWidget(self._lbl_device)
@@ -142,19 +160,18 @@ class MainWindow(QMainWindow):
         flayout = QVBoxLayout(fw_group)
         flayout.setContentsMargins(12, 10, 12, 10)
         flayout.setSpacing(8)
-        ftitle = QLabel("Firmware")
-        ftitle.setProperty("class", "title")
-        flayout.addWidget(ftitle)
+        self._lbl_title_fw = QLabel()
+        self._lbl_title_fw.setProperty("class", "title")
+        flayout.addWidget(self._lbl_title_fw)
         row = QHBoxLayout()
         self._edit_firmware = QLineEdit()
-        self._edit_firmware.setPlaceholderText("Select firmware image file...")
         self._edit_firmware.setReadOnly(True)
-        self._btn_browse = QPushButton("Browse")
+        self._btn_browse = QPushButton()
         self._btn_browse.clicked.connect(self._on_browse_firmware)
         row.addWidget(self._edit_firmware, 1)
         row.addWidget(self._btn_browse)
         flayout.addLayout(row)
-        self._lbl_fw_info = QLabel("Format: —  |  Size: —")
+        self._lbl_fw_info = QLabel()
         self._lbl_fw_info.setProperty("class", "caption")
         flayout.addWidget(self._lbl_fw_info)
         root.addWidget(fw_group)
@@ -168,7 +185,7 @@ class MainWindow(QMainWindow):
         self._lbl_status.setProperty("class", "status")
         # Ignored, so a long tool line clips instead of pushing the button off.
         self._lbl_status.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
-        self._btn_flash = QPushButton("Start Flash")
+        self._btn_flash = QPushButton()
         self._btn_flash.setProperty("class", "primary")
         self._btn_flash.clicked.connect(self._on_flash)
         actions.addWidget(self._lbl_status, 1)
@@ -178,7 +195,6 @@ class MainWindow(QMainWindow):
         self._status_timer = QTimer(self)
         self._status_timer.setSingleShot(True)
         self._status_timer.timeout.connect(self._restore_status)
-        self._set_status("Ready")
 
         # Fusion, unlike the macOS style, puts buttons in the tab chain, so
         # activating the window handed focus to Refresh -- the first one built --
@@ -188,18 +204,60 @@ class MainWindow(QMainWindow):
         central.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         central.setFocus()
 
-        # Last, because it settles the flash button, which is built above.
-        self._render_devices([])
+        # Last: it fills every label from the current language and settles the
+        # flash button, which is built above.
+        self._retranslate_ui()
+
+    def _retranslate_ui(self) -> None:
+        """Apply every user-facing string in the current language."""
+        product_name = self.tr("Rockchip Flash Tool")
+        self.setWindowTitle(f"{product_name} v{__version__}")
+        self._lbl_title_device.setText(self.tr("Device"))
+        self._lbl_title_fw.setText(self.tr("Firmware"))
+        self._btn_refresh.setText(self.tr("Refresh"))
+        self._btn_browse.setText(self.tr("Browse"))
+        self._btn_flash.setText(self.tr("Start Flash"))
+        self._edit_firmware.setPlaceholderText(self.tr("Select firmware image file…"))
+
+        self._status_idle = self.tr("Ready")
+        self._show_status(self._status_idle)
+        self._device_text = self.tr("No device connected")
+        # Device text is state-driven; clear the cache so an empty list repaints
+        # with the current strings too.
+        self._device_shown = None
+        self._render_fw_info()
+        self._render_devices(self._devices)
+
+    def _format_name(self, fmt: ImageFormat) -> str:
+        return {
+            ImageFormat.RKFW: self.tr("Rockchip Firmware (RKFW)"),
+            ImageFormat.RKAF: self.tr("Rockchip Firmware (RKAF)"),
+            ImageFormat.RAW: self.tr("Raw Disk Image"),
+            ImageFormat.UNKNOWN: self.tr("Unknown"),
+        }[fmt]
+
+    def _render_fw_info(self) -> None:
+        if self._fw_info is not None:
+            self._lbl_fw_info.setText(
+                self._fw_info_text(
+                    self._format_name(self._fw_info.format),
+                    self._fw_info.size_display,
+                )
+            )
+        elif self._fw_parse_error:
+            self._lbl_fw_info.setText(self._fw_info_text(self.tr("Parse error"), "—"))
+        else:
+            self._lbl_fw_info.setText(self._fw_info_text("—", "—"))
 
     def _try_init_tool(self) -> None:
         try:
             self._flasher = Flasher()
             self._tool_available = True
-            self._set_status("Ready")
+            self._set_status(self.tr("Ready"))
             self._poll_device()
         except ToolNotFoundError:
             self._tool_available = False
-            self._set_status("upgrade_tool not found")
+            self._set_status(self.tr("upgrade_tool not found"))
 
     def _setup_polling(self) -> None:
         self._timer = QTimer(self)
@@ -259,22 +317,24 @@ class MainWindow(QMainWindow):
         # packing is lossy and differs per platform, so it is never reformatted.
         return [f"{d.chip_display}  @{d.key}" for d in devices]
 
-    @staticmethod
-    def _device_line(dev: DeviceInfo | None) -> str:
+    def _device_line(self, dev: DeviceInfo | None) -> str:
         if dev is None:
-            return "No device connected"
-        parts = ["Connected", dev.chip_display, dev.mode, f"@{dev.key}"]
+            return self.tr("No device connected")
+        parts = [self.tr("Connected"), dev.chip_display, dev.mode, f"@{dev.key}"]
         if dev.serial_no:
-            parts.append(f"SN {dev.serial_no}")
+            parts.append(self.tr("SN %(serial)s") % {"serial": dev.serial_no})
         return "  ·  ".join(parts)
 
-    @staticmethod
-    def _device_detail(dev: DeviceInfo | None) -> str:
+    def _device_detail(self, dev: DeviceInfo | None) -> str:
         if dev is None:
-            return "Mode: —   |   Port ID: —   |   Serial: —"
+            mode = port = serial = "—"
+        else:
+            mode, port, serial = dev.mode, dev.key, dev.serial_no or "—"
         # Spelled out here even though the chip already carries it: the bare
         # @1112 on a chip does not say what kind of number it is.
-        return f"Mode: {dev.mode}   |   Port ID: {dev.key}   |   Serial: {dev.serial_no or '—'}"
+        return self.tr(
+            "Mode: %(mode)s   |   USB port ID: %(port)s   |   Serial: %(serial)s"
+        ) % {"mode": mode, "port": port, "serial": serial}
 
     def _render_devices(self, devices: list[DeviceInfo]) -> None:
         # Compare everything shown, chips and caption both, so a Maskrom->Loader
@@ -343,7 +403,10 @@ class MainWindow(QMainWindow):
         self._btn_flash.setEnabled(ready and self._tool_available)
 
     def _fw_info_text(self, fmt: str, size: str) -> str:
-        return f"Format: {fmt}  |  Size: {size}"
+        return self.tr("Format: %(format)s  |  Size: %(size)s") % {
+            "format": fmt,
+            "size": size,
+        }
 
     @Slot()
     def _poll_device(self) -> None:
@@ -354,21 +417,23 @@ class MainWindow(QMainWindow):
         except Exception as e:  # noqa: BLE001
             # Say so: a failing scan otherwise looks like an unplugged board.
             devices = []
-            self._set_status(f"Device scan failed: {e}", 5000)
+            self._set_status(
+                self.tr("Device scan failed: %(error)s") % {"error": e}, 5000
+            )
         self._render_devices(devices)
 
     @Slot()
     def _on_refresh(self) -> None:
-        self._set_status("Scanning for devices...", 3000)
+        self._set_status(self.tr("Scanning for devices..."), 3000)
         self._poll_device()
 
     @Slot()
     def _on_browse_firmware(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
             self,
-            "Select Firmware",
+            self.tr("Select Firmware"),
             self._last_firmware_dir(),
-            "Images (*.img *.bin *.raw);;All Files (*)",
+            self.tr("Images (*.img *.bin *.raw);;All Files (*)"),
         )
         if not path:
             return
@@ -381,13 +446,21 @@ class MainWindow(QMainWindow):
     def _load_firmware(self, path: str) -> None:
         self._edit_firmware.setText(path)
         self._settings.setValue(_LAST_DIR_KEY, str(Path(path).parent))
+        self._fw_info = None
+        self._fw_parse_error = False
         try:
             info = detect_image_format(path)
-            self._lbl_fw_info.setText(self._fw_info_text(info.format.display_name, info.size_display))
-            self._set_status(f"Firmware loaded: {Path(path).name}", 3000)
+            self._fw_info = info
+            self._render_fw_info()
+            self._set_status(
+                self.tr("Firmware loaded: %(name)s") % {"name": Path(path).name}, 3000
+            )
         except Exception as e:  # noqa: BLE001
-            self._lbl_fw_info.setText(self._fw_info_text("Error", "—"))
-            self._set_status(f"Firmware parse error: {e}", 5000)
+            self._fw_parse_error = True
+            self._render_fw_info()
+            self._set_status(
+                self.tr("Firmware parse error: %(error)s") % {"error": e}, 5000
+            )
 
     def _dropped_firmware(self, event: QDragEnterEvent | QDropEvent) -> str | None:
         if self._worker and self._worker.isRunning():
@@ -418,17 +491,21 @@ class MainWindow(QMainWindow):
     @Slot()
     def _on_flash(self) -> None:
         if not self._tool_available:
-            QMessageBox.warning(self, "Error", "upgrade_tool not found.")
+            QMessageBox.warning(self, self.tr("Error"), self.tr("upgrade_tool not found."))
             return
         fw = self._edit_firmware.text().strip()
         if not fw:
-            QMessageBox.warning(self, "No Firmware", "Please select firmware first.")
+            QMessageBox.warning(
+                self, self.tr("No Firmware"), self.tr("Please select firmware first.")
+            )
             return
         if not Path(fw).exists():
-            QMessageBox.warning(self, "File Not Found", fw)
+            QMessageBox.warning(self, self.tr("File Not Found"), fw)
             return
         if self._selected_key is None:
-            QMessageBox.warning(self, "No Device", "Please select a device first.")
+            QMessageBox.warning(
+                self, self.tr("No Device"), self.tr("Please select a device first.")
+            )
             return
 
         # Pins DB, UF/WL and RD to this board, including across the
@@ -436,7 +513,7 @@ class MainWindow(QMainWindow):
         self._flasher.select_device(self._selected_key)
 
         self._sync_controls(busy=True)
-        self._set_status("Starting flash...")
+        self._set_status(self.tr("Starting flash..."))
 
         self._worker = FlashWorker(self._flasher, fw)
         # Force queued delivery to the UI thread on Windows.
@@ -464,8 +541,8 @@ class MainWindow(QMainWindow):
 
         ret = QMessageBox.question(
             self,
-            "Rockchip Driver Required",
-            (
+            self.tr("Rockchip Driver Required"),
+            self.tr(
                 "Rockchip USB driver is not detected on this Windows system.\n\n"
                 "You must install it before flashing.\n\n"
                 "Install driver now?"
@@ -474,33 +551,39 @@ class MainWindow(QMainWindow):
             QMessageBox.StandardButton.Yes,
         )
         if ret != QMessageBox.StandardButton.Yes:
-            self._set_status("Driver is required before flashing.", 5000)
+            self._set_status(self.tr("Driver is required before flashing."), 5000)
             return False
 
         try:
-            self._set_status("Installing Rockchip driver...")
+            self._set_status(self.tr("Installing Rockchip driver..."))
             tool.install_windows_driver()
         except DriverInstallError as e:
-            QMessageBox.critical(self, "Driver Install Failed", str(e))
+            if e.cancelled:
+                QMessageBox.information(self, self.tr("Driver Installation"), str(e))
+                self._set_status(self.tr("Driver installation cancelled."), 5000)
+            else:
+                QMessageBox.critical(self, self.tr("Driver Install Failed"), str(e))
             return False
         except Exception as e:  # noqa: BLE001
             QMessageBox.critical(
-                self, "Driver Install Failed", f"Unexpected error: {e}"
+                self,
+                self.tr("Driver Install Failed"),
+                self.tr("Unexpected error: %(error)s") % {"error": e},
             )
             return False
 
         if not tool.is_windows_driver_installed():
             QMessageBox.warning(
                 self,
-                "Driver Not Detected",
-                (
+                self.tr("Driver Not Detected"),
+                self.tr(
                     "Driver installation finished, but Rockchip driver is still not detected.\n\n"
                     "Please reopen this app after installing the driver as Administrator."
                 ),
             )
             return False
 
-        self._set_status("Rockchip driver ready.", 4000)
+        self._set_status(self.tr("Rockchip driver ready."), 4000)
         return True
 
     @Slot(str)
@@ -518,9 +601,13 @@ class MainWindow(QMainWindow):
         # Flash progress is shown without a timeout, which makes each line the
         # standing status; put that back to Ready so the result message below
         # expires into it rather than into a stale progress line.
-        self._status_idle = "Ready"
-        self._set_status("Flash completed." if ok else "Flash failed.", 8000)
+        self._status_idle = self.tr("Ready")
+        self._set_status(
+            self.tr("Flash completed.") if ok else self.tr("Flash failed."), 8000
+        )
         if ok:
-            QMessageBox.information(self, "Success", "Flash completed.")
+            QMessageBox.information(
+                self, self.tr("Success"), self.tr("Flash completed.")
+            )
         else:
-            QMessageBox.critical(self, "Flash Failed", msg)
+            QMessageBox.critical(self, self.tr("Flash Failed"), msg)

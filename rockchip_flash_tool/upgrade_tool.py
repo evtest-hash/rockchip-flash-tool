@@ -12,7 +12,24 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
+from PySide6.QtCore import QCoreApplication
+
 from rockchip_flash_tool import resources
+
+
+def _translate(text: str, **values) -> str:
+    """Apply named placeholders to an already-translated message."""
+    return text % values if values else text
+
+
+def _timeout_error(cmd: list[str]) -> UpgradeToolError:
+    return UpgradeToolError(
+        _translate(
+            QCoreApplication.translate("UpgradeTool", "Command timed out: %(command)s"),
+            command=" ".join(cmd),
+        )
+    )
+
 
 _PID_TO_CHIP: dict[int, str] = {
     0x350A: "RK3568",
@@ -60,7 +77,9 @@ class ToolNotFoundError(UpgradeToolError):
 
 
 class DriverInstallError(UpgradeToolError):
-    pass
+    def __init__(self, message: str, cancelled: bool = False):
+        super().__init__(message)
+        self.cancelled = cancelled
 
 
 @dataclass
@@ -75,7 +94,12 @@ class DeviceInfo:
 
     @property
     def chip_display(self) -> str:
-        return self.chip_model or f"Unknown (PID=0x{self.pid:04X})"
+        return self.chip_model or _translate(
+            QCoreApplication.translate(
+                "UpgradeTool", "Unknown (PID=0x%(pid)04X)"
+            ),
+            pid=self.pid,
+        )
 
     @property
     def key(self) -> str:
@@ -90,7 +114,14 @@ def find_upgrade_tool(custom_path: str | None = None) -> Path:
         p = Path(custom_path)
         if p.exists():
             return p
-        raise ToolNotFoundError(f"upgrade_tool not found: {custom_path}")
+        raise ToolNotFoundError(
+            _translate(
+                QCoreApplication.translate(
+                    "UpgradeTool", "upgrade_tool not found: %(path)s"
+                ),
+                path=custom_path,
+            )
+        )
 
     bundled = resources.upgrade_tool_path()
     if bundled.exists():
@@ -98,7 +129,14 @@ def find_upgrade_tool(custom_path: str | None = None) -> Path:
             os.chmod(bundled, 0o755)
         return bundled
 
-    raise ToolNotFoundError(f"Bundled upgrade_tool not found: {bundled}")
+    raise ToolNotFoundError(
+        _translate(
+            QCoreApplication.translate(
+                "UpgradeTool", "Bundled upgrade_tool not found: %(path)s"
+            ),
+            path=bundled,
+        )
+    )
 
 
 class UpgradeTool:
@@ -239,7 +277,12 @@ class UpgradeTool:
                 **no_console,
             )
             if proc.stdout is None:
-                raise UpgradeToolError("Failed to capture upgrade_tool output on Windows.")
+                raise UpgradeToolError(
+                    QCoreApplication.translate(
+                        "UpgradeTool",
+                        "Failed to capture upgrade_tool output on Windows.",
+                    )
+                )
 
             start = time.time()
             output_parts = bytearray()
@@ -247,7 +290,7 @@ class UpgradeTool:
             while True:
                 if (time.time() - start) > timeout:
                     proc.kill()
-                    raise UpgradeToolError(f"Command timed out: {' '.join(cmd)}")
+                    raise _timeout_error(cmd)
 
                 b = proc.stdout.read(1)
                 if not b:
@@ -312,7 +355,7 @@ class UpgradeTool:
             if (time.time() - start) > timeout:
                 proc.kill()
                 os.close(master_fd)
-                raise UpgradeToolError(f"Command timed out: {' '.join(cmd)}")
+                raise _timeout_error(cmd)
             ready, _, _ = select.select([master_fd], [], [], 0.05)
             if not ready:
                 if proc.poll() is not None:
@@ -376,7 +419,7 @@ class UpgradeTool:
                         proc.close()
                     except Exception:  # noqa: BLE001
                         pass
-                    raise UpgradeToolError(f"Command timed out: {' '.join(cmd)}")
+                    raise _timeout_error(cmd)
 
                 try:
                     chunk = proc.read(4096)
@@ -490,7 +533,7 @@ class UpgradeTool:
         while True:
             if (time.time() - start) > timeout:
                 proc.kill()
-                raise UpgradeToolError(f"Command timed out: {' '.join(cmd)}")
+                raise _timeout_error(cmd)
             drain_new()
             if proc.poll() is not None:
                 break
@@ -535,10 +578,16 @@ class UpgradeTool:
     def install_windows_driver(self) -> None:
         if os.name != "nt":
             return
-        from rockchip_flash_tool.win_driver import DriverPackageError, install_elevated
+        from rockchip_flash_tool.win_driver import (
+            DriverPackageCancelled,
+            DriverPackageError,
+            install_elevated,
+        )
 
         try:
             install_elevated()
+        except DriverPackageCancelled as e:
+            raise DriverInstallError(str(e), cancelled=True) from e
         except DriverPackageError as e:
             raise DriverInstallError(str(e)) from e
 
@@ -550,17 +599,33 @@ class UpgradeTool:
     def get_device(self) -> DeviceInfo:
         devices = self.list_devices()
         if not devices:
-            raise DeviceNotFoundError("No Rockchip device detected.")
+            raise DeviceNotFoundError(
+                QCoreApplication.translate("UpgradeTool", "No Rockchip device detected.")
+            )
         if self._device_id is None:
             return devices[0]
         matches = [dev for dev in devices if dev.key == self._device_id]
         if not matches:
-            raise DeviceNotFoundError(f"Device @{self._device_id} is no longer connected.")
+            raise DeviceNotFoundError(
+                _translate(
+                    QCoreApplication.translate(
+                        "UpgradeTool", "Device @%(id)s is no longer connected."
+                    ),
+                    id=self._device_id,
+                )
+            )
         # LocationID masks every USB hub level to 4 bits, so distinct port paths
         # can alias. `-s` answers that by taking the first match; refuse instead.
         if len(matches) > 1:
             raise AmbiguousDeviceError(
-                f"{len(matches)} devices report LocationID {self._device_id}."
+                _translate(
+                    QCoreApplication.translate(
+                        "UpgradeTool",
+                        "%(count)d devices report USB port ID %(id)s.",
+                    ),
+                    count=len(matches),
+                    id=self._device_id,
+                )
             )
         return matches[0]
 
@@ -595,7 +660,14 @@ class UpgradeTool:
     def download_boot(self, loader_path: str | Path) -> bool:
         loader = Path(loader_path)
         if not loader.exists():
-            raise UpgradeToolError(f"Loader not found: {loader}")
+            raise UpgradeToolError(
+                _translate(
+                    QCoreApplication.translate(
+                        "UpgradeTool", "Loader not found: %(path)s"
+                    ),
+                    path=loader,
+                )
+            )
         out = self._run("DB", str(loader), timeout=120)
         text = (out.stdout or "") + (out.stderr or "")
         # No second opinion from LD: it cannot give one. A board running its spl
@@ -608,7 +680,14 @@ class UpgradeTool:
     def upgrade_firmware(self, firmware_path: str | Path, progress_callback: Callable[[int | None, str], None] | None = None) -> bool:
         p = Path(firmware_path)
         if not p.exists():
-            raise UpgradeToolError(f"Firmware not found: {p}")
+            raise UpgradeToolError(
+                _translate(
+                    QCoreApplication.translate(
+                        "UpgradeTool", "Firmware not found: %(path)s"
+                    ),
+                    path=p,
+                )
+            )
         out = self._run("UF", str(p), timeout=1200, progress_callback=progress_callback)
         text = (out.stdout or "") + (out.stderr or "")
         return self._ok(text, "upgrade firmware ok") or out.returncode == 0
@@ -616,7 +695,14 @@ class UpgradeTool:
     def write_image(self, image_path: str | Path, progress_callback: Callable[[int | None, str], None] | None = None) -> bool:
         p = Path(image_path)
         if not p.exists():
-            raise UpgradeToolError(f"Image not found: {p}")
+            raise UpgradeToolError(
+                _translate(
+                    QCoreApplication.translate(
+                        "UpgradeTool", "Image not found: %(path)s"
+                    ),
+                    path=p,
+                )
+            )
         out = self._run("WL", "0", str(p), timeout=1200, progress_callback=progress_callback)
         text = (out.stdout or "") + (out.stderr or "")
         return self._ok(text, "download image ok") or out.returncode == 0

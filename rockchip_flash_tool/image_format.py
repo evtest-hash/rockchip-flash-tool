@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
+from PySide6.QtCore import QCoreApplication
+
 
 class ImageFormat(Enum):
     RKFW = "rkfw"
@@ -14,15 +16,6 @@ class ImageFormat(Enum):
     @property
     def is_rk_format(self) -> bool:
         return self in (ImageFormat.RKFW, ImageFormat.RKAF)
-
-    @property
-    def display_name(self) -> str:
-        return {
-            ImageFormat.RKFW: "Rockchip Firmware (RKFW)",
-            ImageFormat.RKAF: "Rockchip Firmware (RKAF)",
-            ImageFormat.RAW: "Raw Disk Image",
-            ImageFormat.UNKNOWN: "Unknown",
-        }[self]
 
 
 @dataclass
@@ -44,7 +37,10 @@ class ImageInfo:
 def detect_image_format(path: str | Path) -> ImageInfo:
     p = Path(path)
     if not p.exists() or not p.is_file():
-        raise FileNotFoundError(f"Image file not found: {p}")
+        raise FileNotFoundError(
+            QCoreApplication.translate("ImageFormat", "Image file not found: %(path)s")
+            % {"path": p}
+        )
 
     with p.open("rb") as f:
         header = f.read(4096)

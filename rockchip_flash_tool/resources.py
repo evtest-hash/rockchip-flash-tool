@@ -40,6 +40,10 @@ def windows_driver_dir() -> Path:
     return base_dir() / "vendor" / "upgrade_tool" / "windows" / "driver"
 
 
+def i18n_dir() -> Path:
+    return base_dir() / "rockchip_flash_tool" / "i18n"
+
+
 def icon_path() -> Path | None:
     name = "icon.ico" if sys.platform.startswith("win") else "icon.icns"
     icon = base_dir() / "assets" / name

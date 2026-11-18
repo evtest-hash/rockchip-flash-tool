@@ -4,7 +4,7 @@
 [![Release](https://img.shields.io/github/v/release/evtest-hash/rockchip-flash-tool)](../../releases/latest)
 ![Platforms](https://img.shields.io/badge/platforms-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)
 
-选好固件，点 **Start Flash**，两步烧完一块 Rockchip 板子。
+选好固件，点 **开始烧录**，两步烧完一块 Rockchip 板子。
 接的是哪颗芯片、板子在什么模式、该用哪个 loader、镜像怎么写，工具自己判断。
 
 [English](README.md) · [简体中文](README.zh-CN.md)
