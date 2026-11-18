@@ -1,3 +1,37 @@
+v2.55 revision(2025/09/28)
+1.add close_read_capability setting
+
+v2.54 revision(2025/09/24)
+1.add "wvd" and "rvd" commands
+2.delete "rsn" and "sn" commands
+
+
+v2.53 revision(2025/08/15)
+1.fix forget to do rc4 before 471 and 472
+
+v2.52 revision(2025/07/23)
+1."ufx" function done
+
+v2.51 revision(2025/07/14)
+1.add "ERPC" function
+
+v2.50 revision(2025/06/03)
+1."RRAM" "WRAM" "ERAM" support 64bit addr
+2. add "TRPC" "RRPC" "WRPC" commands
+
+v2.48 revision(2025/04/29)
+1.add read and write repaircode commands
+2.fix skip check on download boot step bug
+
+v2.47 revision(2025/03/26)
+1.add “RRAM" "WRAM" "ERAM" "471" "472" commands
+
+v2.46 revision(2025/03/18)
+1.add rkusb_timeout setting
+
+v2.45 revision(2025/01/13)
+1.fix same serial no for usbplug device bug in windows
+
 v2.44 revision(2024/12/24)
 1.change name from vdk into rvd
 
