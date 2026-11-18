@@ -18,8 +18,9 @@ source and is redistributed as-is.
 
 | Path | What | Version |
 |---|---|---|
-| `vendor/upgrade_tool/darwin`, `linux` | Rockchip upgrade_tool | v2.44 |
-| `vendor/upgrade_tool/windows` | Rockchip upgrade_tool | v2.46 |
+| `vendor/upgrade_tool/darwin` | Rockchip upgrade_tool | v2.44 |
+| `vendor/upgrade_tool/linux` | Rockchip upgrade_tool | v2.55 |
+| `vendor/upgrade_tool/windows` | Rockchip upgrade_tool | v2.56 |
 | `vendor/upgrade_tool/windows/driver` | rockusb USB driver, x86 + x64, Win7–Win10 | 5.13.0000.0 (2023-11-09) |
 | `vendor/rkbin` | Bootloaders, from <https://github.com/rockchip-linux/rkbin> | see filenames |
 

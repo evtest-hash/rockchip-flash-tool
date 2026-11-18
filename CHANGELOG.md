@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.0
+
+### Changed
+
+- The bundled `upgrade_tool` is updated to v2.55 on Linux and v2.56 on Windows.
+
 ## 1.2.0
 
 ### Added
